@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'en' }}">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    {# ── Title — override via context variable `title` or the block ─────── #}
+    {% block title %}
+    <title>{% if title %}{{ title|escape }}{% else %}App{% endif %}</title>
+    {% endblock %}
+
+    {% load static %}
+
+    {#
+      CSRF token — read by the JS engine (getCsrfToken()) for all
+      fetch/XHR requests.  The value is rendered by Django's csrf_token
+      tag which is already HTML-safe.
+    #}
+    <meta name="csrf-token" content="{{ csrf_token }}" />
+
+    {#
+      Application meta — useful for version-checking and debugging.
+      The djact:version value can be set via the `djact_version` context
+      variable if you inject it through a context processor.
+    #}
+    {% if djact_version %}
+    <meta name="djact:version" content="{{ djact_version }}" />
+    {% endif %}
+
+    {# ── Preconnect hints — add your CDN / font origins here ───────────── #}
+    {% block preconnect %}{% endblock %}
+
+    {# ── Stylesheets / extra head content ───────────────────────────────── #}
+    {% block head %}{% endblock %}
+  </head>
+
+  <body class="{% block body_class %}{% endblock %}">
+
+    {#
+      ── Loading indicator ────────────────────────────────────────────────
+      This element is shown while the initial JS bundle is loading.
+      Djact hides it automatically once the React root is mounted.
+      Style it however you like; the id="djact-loading" is the hook.
+    #}
+    {% block loading %}
+    <div id="djact-loading" aria-hidden="true" style="display:none"></div>
+    {% endblock %}
+
+    {#
+      ── React mount point ────────────────────────────────────────────────
+
+      `data-page` carries the full JSON payload:
+        {
+          "component": "library/Dashboard",
+          "props":     { ... },
+          "url":       "/current/path/"
+        }
+
+      The value is produced by djact.render._safe_json() which escapes
+      < > & ' " so the string is safe to embed in any HTML attribute
+      context.  We still add |safe to prevent Django's auto-escape from
+      double-encoding the already-escaped output.
+    #}
+    <div id="app" data-page="{{ page|safe }}"></div>
+
+    {#
+      ── Djact client bundle ──────────────────────────────────────────────
+
+      Loaded as type="module":
+        • Deferred (runs after DOM is parsed — no need for DOMContentLoaded).
+        • Enables top-level await and native ESM imports.
+        • Scoped — no global namespace pollution.
+
+      In production, replace this with your bundled output and use
+      {% static 'djact/app.min.js' %} or your asset manifest hash.
+    #}
+    <script type="module" src="{% static 'djact/app.js' %}"></script>
+
+    {# ── Extra scripts / analytics injected by child templates ──────────── #}
+    {% block scripts %}{% endblock %}
+
+  </body>
+</html>
