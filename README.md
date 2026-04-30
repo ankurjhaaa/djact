@@ -1,25 +1,29 @@
 # djact ⚛️🐍
 
-**djact** is a lightweight, production-ready bridge between **Django** and **React**. It allows you to build single-page applications (SPAs) using a server-driven architecture—similar to Inertia.js—without the complexity of building a REST or GraphQL API.
+**djact** is a production-ready bridge between **Django** and **React**. It allows you to build single-page applications (SPAs) using a server-driven architecture—similar to Inertia.js—but designed specifically for the Django ecosystem.
 
-With **djact**, Django remains your source of truth for routing, authentication, and data logic, while React is used purely for the view layer.
+With **djact**, Django handles your routing, authentication, and database logic. React is used strictly for rendering your user interface. No REST API or GraphQL layer is required.
 
 ---
 
-## 🌟 Features
+## 🛠️ How it Works
 
-- **Server-Driven Routing**: Use standard Django URLs and views. No React Router needed.
-- **No REST API Required**: Pass data directly from your views to React components as props.
-- **Multi-App Support**: Scale easily by organizing components across multiple Django apps.
-- **SPA Experience**: Smooth client-side navigation using the custom `<Link>` component.
-- **Zero Configuration**: Lightweight engine that works out of the box with any bundling tool (Vite, Webpack, etc.).
-- **Built-in Security**: Automatic CSRF handling and safe JSON serialisation.
+The flow is simple and predictable:
+
+1. **User Action**: A user clicks a `<Link>` or enters a URL.
+2. **Django Route**: Django's `urls.py` captures the request and calls a standard view.
+3. **View Logic**: You perform your database queries and logic in the view.
+4. **Djact Render**: You call `djact_render(request, "ComponentName", props)`.
+5. **Smart Response**:
+   - On the **first visit**, Djact returns a full HTML page.
+   - On **subsequent clicks**, Djact returns a tiny JSON payload.
+6. **React Render**: The frontend engine receives the props and swaps the component instantly without a page reload.
 
 ---
 
 ## 🚀 Installation
 
-Install the package via pip:
+Install via pip:
 
 ```bash
 pip install djact
@@ -27,47 +31,50 @@ pip install djact
 
 ---
 
-## ⚙️ Django Setup
+## ⚙️ Django Setup (Step-by-Step)
 
-### 1. Register the App
-Add `djact` to your `INSTALLED_APPS` in `settings.py`:
+### 1. Add to `INSTALLED_APPS`
+Open your `settings.py` and add `djact`:
 
 ```python
 INSTALLED_APPS = [
-    # ...
+    ...
     "djact",
-    # ...
+    ...
 ]
 ```
 
 ### 2. Add Middleware
-Include the `DjactMiddleware` to enable request detection and shared data support:
+Add the `DjactMiddleware` to your middleware list:
 
 ```python
 MIDDLEWARE = [
-    # ...
+    ...
     "djact.middleware.DjactMiddleware",
-    # ...
+    ...
 ]
 ```
 
-### 3. Static Files
-Ensure your `STATIC_URL` is configured. Djact serves its client-side engine from your static files.
+### 3. Static Files & Templates
+Ensure your template engine is configured with `APP_DIRS: True` (this is the Django default). When you are ready for production, run:
+
+```bash
+python manage.py collectstatic
+```
 
 ---
 
 ## 📖 Basic Usage
 
-In your Django view, use `djact_render` instead of the standard `render`. You provide the component name (including the app namespace) and a dictionary of props.
+In your views, import and use `djact_render`. You can pass any string as the component name and any dictionary as props.
 
 ```python
-# apps/library/views.py
 from djact import djact_render
 
-def home(request):
-    return djact_render(request, "library/Home", {
-        "name": "Ankur",
-        "books_count": 42
+def home_view(request):
+    return djact_render(request, "Home", {
+        "user_name": request.user.username,
+        "items": ["Laptop", "Mouse", "Keyboard"]
     })
 ```
 
@@ -75,60 +82,77 @@ def home(request):
 
 ## ⚛️ React Setup
 
-In your frontend entry point (e.g., `main.jsx`), bootstrap the application using `createDjactApp`. The `resolve` function tells the engine how to find your component files based on the name sent by Django.
+### 1. Initialize your project
+You can use Vite or any bundler you prefer. Create a directory for your React components (e.g., `frontend/Pages/`).
+
+### 2. Bootstrap the engine
+In your main JavaScript entry point (e.g., `app.js`), initialize Djact. You have full control over how component names map to files.
 
 ```javascript
 import { createDjactApp } from "djact/static/djact/app.js";
 
 createDjactApp({
-  resolve: async (name) => {
-    // Split "library/Home" into app and page name
-    const [app, page] = name.split('/');
-    
-    // Dynamically import the component from your project structure
-    return import(`./apps/${app}/frontend/Pages/${page}.jsx`);
-  }
+  resolve: (name) => import(`./Pages/${name}.jsx`),
 });
 ```
 
 ---
 
-## 🗺️ Recommended Project Structure
+## 📂 Project Structure Options
 
-To keep your project clean, we recommend placing your React components inside a `frontend/Pages/` directory within each Django app.
+Djact is **generic**. It does not enforce a folder structure. Here are two common ways to organize your project:
+
+### Option 1: Centralized (Simple)
+Best for small to medium projects where all React code lives in one place.
+
+```text
+my_project/
+├── frontend/
+│   └── Pages/
+│       ├── Home.jsx
+│       └── Dashboard.jsx
+├── app.js (JS entry point)
+└── manage.py
+```
+
+### Option 2: Modular (Multiple Django Apps)
+Best for large projects with independent apps like `library` and `salon`.
 
 ```text
 my_project/
 ├── apps/
 │   ├── library/
-│   │   ├── views.py
-│   │   ├── urls.py
-│   │   └── frontend/
-│   │       └── Pages/
-│   │           └── Home.jsx     <-- "library/Home"
-│   └── student/
-│       └── frontend/
-│           └── Pages/
-│               └── Profile.jsx  <-- "student/Profile"
-├── static/
-├── manage.py
-└── main.jsx                     <-- Your JS entry point
+│   │   ├── views.py (returns "Library/Home")
+│   │   └── frontend/Pages/Home.jsx
+│   └── salon/
+│       ├── views.py (returns "Salon/Booking")
+│       └── frontend/Pages/Booking.jsx
+├── app.js (JS entry point)
+└── manage.py
+```
+
+In this case, your resolver in `app.js` might look like this:
+```javascript
+resolve: (name) => {
+  const [app, page] = name.split('/');
+  return import(`./apps/${app.toLowerCase()}/frontend/Pages/${page}.jsx`);
+}
 ```
 
 ---
 
 ## 🔗 Navigation
 
-To maintain the SPA experience, use the provided `<Link>` component for internal navigation. This prevents full page reloads and fetches only the component data.
+Always use the `<Link>` component for internal navigation to keep the SPA experience.
 
 ```jsx
 import { Link } from "djact/static/djact/app.js";
 
-export default function Navbar() {
+export function Navbar() {
   return (
     <nav>
       <Link href="/">Home</Link>
-      <Link href="/dashboard">Dashboard</Link>
+      <Link href="/profile">Profile</Link>
     </nav>
   );
 }
@@ -136,35 +160,22 @@ export default function Navbar() {
 
 ---
 
-## 🛠️ How it Works
-
-1. **The Request**: A user clicks a `<Link>`.
-2. **The Server**: Django receives the request with a special `X-Djact` header.
-3. **The View**: `djact_render` detects the header and returns a JSON payload containing the component name and props.
-4. **The Bridge**: The Djact JS engine receives the JSON, resolves the React component, and updates the view state.
-5. **The Render**: React re-renders only the changed portion of the page.
-
-*Note: For the very first visit, Django returns a full HTML shell to ensure SEO and fast initial load.*
-
----
-
 ## ✅ Best Practices
 
-- **Source of Truth**: Always keep your business logic and routing in Django. React should only be used for rendering and UI state.
-- **Avoid React Router**: Using a frontend router defeats the purpose of **djact**. Let Django handle the URLs.
-- **Naming Conventions**: Always use the `app_name/ComponentName` format to avoid conflicts as your project grows.
-- **Shared Data**: Use `request.djact.share()` in middleware for data needed globally (like the current user).
+- **Django is the Boss**: Let Django handle all routing, redirects, and permissions.
+- **No React Router**: Do not install `react-router`. It will conflict with Django's routing.
+- **Pure Components**: Keep your React components focused on rendering. Don't fetch data from within React; get it from props.
 
 ---
 
-## 🔮 Future Scope
+## ⚠️ Common Mistakes
 
-- **SSR Support**: Built-in server-side rendering for even better SEO.
-- **TypeScript**: First-class types for both Python and JavaScript.
-- **Dev Tools**: A browser extension to inspect Djact props and history state.
+1. **Installing React Router**: This is the most common mistake. Djact handles navigation for you.
+2. **Hardcoding Paths**: Always use dynamic imports in your `resolve` function so your bundle stays small.
+3. **Putting JSX in Django Templates**: All your UI logic should live in `.jsx` or `.tsx` files, not in `.html` files.
 
 ---
 
 ## 📄 License
 
-MIT © [Ankur Jha](https://github.com/ankurjha)
+MIT

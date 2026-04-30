@@ -56,8 +56,9 @@ def djact_render(
 
     Args:
         request:        The current Django ``HttpRequest``.
-        component:      React component name, e.g. ``"library/Dashboard"``.
-                        Supports multi-app names with slash separators.
+        component:      React component identifier string (e.g. ``"Home"``, 
+                        ``"Admin/Users"``, or ``"Auth/Login"``). This string is 
+                        passed verbatim to your frontend resolver.
         props:          JSON-serialisable dict of props.  Defaults to ``{}``.
         status:         HTTP status code.  Defaults to ``200``.
         extra_context:  Additional context variables merged into the template

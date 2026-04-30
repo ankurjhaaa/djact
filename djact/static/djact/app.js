@@ -16,19 +16,20 @@
  *   react     ≥ 18
  *   react-dom ≥ 18
  *
- * Component name conventions
- * ──────────────────────────
- *   "Dashboard"          → resolve("Dashboard")
- *   "library/Dashboard"  → resolve("library/Dashboard")
- *   "student/Profile"    → resolve("student/Profile")
+ * Component naming
+ * ────────────────
+ *   Djact does not enforce a naming convention or folder structure. 
+ *   The string you pass to `djact_render` in Django is passed verbatim 
+ *   to your `resolve` function here.
  *
- *   Your resolver receives the exact string from Django — just map it to a
- *   dynamic import.  Example using Vite glob:
+ *   Examples:
+ *     Django: djact_render(request, "Home") 
+ *     JS: resolve("Home")
  *
- *     const pages = import.meta.glob('./pages/**\/*.jsx');
- *     createDjactApp({
- *       resolve: (name) => pages[`./pages/${name}.jsx`](),
- *     });
+ *     Django: djact_render(request, "Admin/Settings")
+ *     JS: resolve("Admin/Settings")
+ *
+ *   You decide how to map these strings to files in your project.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
