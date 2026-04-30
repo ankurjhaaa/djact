@@ -13,17 +13,11 @@ Think of **djact** as a bridge.
 - **No REST API Needed**: You don't need to build complex endpoints. You just pass data from Django to React like you would with a normal template.
 - **SPA Feel**: Your app feels like a Single Page Application (fast and fluid) because Djact only swaps the content of the page when you click a link.
 
----
-
 ## 2. Installation
-
-Open your terminal and run:
 
 ```bash
 pip install djact
 ```
-
----
 
 ## 3. Create your Django Project
 
