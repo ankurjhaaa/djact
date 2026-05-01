@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "djact"
-version = "1.0.0"
+version = "1.0.1"
 description = "Inertia.js-like bridge between Django and React — server-driven SPA without a REST API."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -44,9 +44,11 @@ include = ["djact*"]
 
 [tool.setuptools.package-data]
 djact = [
-    "templates/djact/*.html",
-    "static/djact/*.js",
-    "static/djact/*.css",
-    "static/djact/*.map",
+    "templates/*.html",
+    "static/*.js",
+    "static/*.css",
+    "static/*.map",
+    "djact/*.js",
+    "djact/*.jsx",
     "py.typed",
 ]

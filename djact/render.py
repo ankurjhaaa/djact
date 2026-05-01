@@ -93,7 +93,7 @@ def djact_render(
 
     return django_render(
         request,
-        "djact/djact.html",
+        "djact.html",
         context,
         status=status,
     )

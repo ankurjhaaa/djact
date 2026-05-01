@@ -72,9 +72,9 @@
         • Scoped — no global namespace pollution.
 
       In production, replace this with your bundled output and use
-      {% static 'djact/app.min.js' %} or your asset manifest hash.
+      {% static 'app.min.js' %} or your asset manifest hash.
     #}
-    <script type="module" src="{% static 'djact/app.js' %}"></script>
+    <script type="module" src="{% static 'app.js' %}"></script>
 
     {# ── Extra scripts / analytics injected by child templates ──────────── #}
     {% block scripts %}{% endblock %}
