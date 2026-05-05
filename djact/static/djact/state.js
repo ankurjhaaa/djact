@@ -1,3 +1,5 @@
+import { evaluateExpression } from "./renderer_expr.js";
+
 export function parseStateString(value) {
   const state = {};
   const parts = value.split(",").map((p) => p.trim()).filter(Boolean);
@@ -9,8 +11,15 @@ export function parseStateString(value) {
   return state;
 }
 
-export function parseUpdatesString(value) {
-  return parseStateString(value);
+export function parseUpdatesString(value, state) {
+  const updates = {};
+  const parts = value.split(",").map((p) => p.trim()).filter(Boolean);
+  for (const part of parts) {
+    const [rawKey, rawVal] = splitKeyValue(part);
+    if (!rawKey) continue;
+    updates[rawKey] = parseUpdateValue(rawVal, state || {});
+  }
+  return updates;
 }
 
 function parseValue(value) {
@@ -27,4 +36,31 @@ function parseValue(value) {
   }
 
   return value;
+}
+
+function splitKeyValue(part) {
+  const idx = part.indexOf("=");
+  if (idx === -1) return [part.trim(), ""]; 
+  return [part.slice(0, idx).trim(), part.slice(idx + 1).trim()];
+}
+
+function parseUpdateValue(value, state) {
+  if (value === undefined || value === "") return null;
+  if (isLiteral(value)) return parseValue(value);
+  try {
+    return evaluateExpression(value, state);
+  } catch {
+    return parseValue(value);
+  }
+}
+
+function isLiteral(value) {
+  if (value === "true" || value === "false" || value === "null" || value === "undefined") {
+    return true;
+  }
+  if (!Number.isNaN(Number(value))) return true;
+  return (
+    (value.startsWith("'") && value.endsWith("'")) ||
+    (value.startsWith('"') && value.endsWith('"'))
+  );
 }

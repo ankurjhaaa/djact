@@ -9,6 +9,10 @@ export function bootstrap() {
 
   let state = parseStateString(root.getAttribute("dj:state") || "");
 
+  function getState() {
+    return state;
+  }
+
   function setState(updates) {
     state = { ...state, ...updates };
     window.djact.state = state;
@@ -20,7 +24,7 @@ export function bootstrap() {
   window.djact.state = state;
   window.djact.setState = setState;
 
-  bindDirectives(root, state, setState);
+  bindDirectives(root, getState, setState);
 
   // Initial render
   render(root, state);
