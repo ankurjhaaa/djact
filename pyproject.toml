@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "djact"
-version = "1.0.1"
-description = "Inertia.js-like bridge between Django and React — server-driven SPA without a REST API."
+version = "2.0.1"
+description = "HTML-first frontend interaction for Django, JSON-only server, and client-side DOM updates."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-keywords = ["django", "react", "inertia", "spa", "frontend", "bridge"]
+keywords = ["django", "frontend", "json", "html", "directives"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Web Environment",
@@ -44,11 +44,7 @@ include = ["djact*"]
 
 [tool.setuptools.package-data]
 djact = [
-    "templates/*.html",
-    "static/*.js",
-    "static/*.css",
-    "static/*.map",
-    "djact/*.js",
-    "djact/*.jsx",
+    "static/djact/*.js",
+    "static/djact/*.txt",
     "py.typed",
 ]

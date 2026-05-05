@@ -1,323 +1,178 @@
 # Djact
 
-Djact is a minimal Django + React bridge (Inertia-like). It returns HTML on the first visit and JSON on subsequent visits. React mounts once and swaps components without a full page reload.
+Djact is a lightweight HTML-first interaction system for Django. It is **not** React, **not** Inertia, and **not** Livewire. The server returns JSON only, and the client updates the DOM.
 
-This README is intentionally detailed and step-by-step so you can publish and set up with no missing steps.
+## Why Djact
 
----
+- Write backend logic and HTML in the **same template**.
+- Simple directives like `dj:click` and `dj:submit`.
+- No HTML re-rendering from server.
+- A tiny client runtime that updates DOM based on state.
 
-## 1) Install the package
+## Installation
 
 ```bash
 pip install djact
 ```
 
----
+## Quick Start
 
-## 2) What Djact needs in your Django project
-
-Djact only needs:
-
-- `djact` in `INSTALLED_APPS`
-- `DjactMiddleware` in `MIDDLEWARE`
-- A view that calls `djact_render()`
-- A React bundle built to `djact/static/app.js`
-
-Nothing else is required by Djact.
-
----
-
-## 3) Django settings (exact steps)
-
-Open your Django project's `settings.py` and update these sections.
-
-### 3.1 `INSTALLED_APPS`
+### 1) Add `djact` to `INSTALLED_APPS`
 
 ```python
 INSTALLED_APPS = [
-    # keep your existing apps
+    # ...
     "djact",
 ]
 ```
 
-If your project already uses static files, you can keep `django.contrib.staticfiles` as usual.
+### 2) Include Djact URLs
 
-### 3.2 `MIDDLEWARE`
+```python
+from django.urls import path, include
+
+urlpatterns = [
+    # ...
+    path("", include("djact.urls")),
+]
+```
+
+### 3) Enable auto-loading for .dj.html
+
+Add the middleware so Djact assets auto-load for templates ending with `.dj.html`:
 
 ```python
 MIDDLEWARE = [
     # ...
-    "djact.middleware.DjactMiddleware",
+    "djact.middleware.DjactAutoLoadMiddleware",
 ]
 ```
 
-### 3.3 `TEMPLATES`
+Now create templates with `.dj.html` extension, and you do NOT need to manually load JS.
 
-Make sure `APP_DIRS` is `True` so Django can load the template shipped with the package.
+### 4) Template example (home.dj.html)
 
-```python
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-            ],
-        },
+```django
+{% load djact %}
+
+{% djact %}
+
+def mount(request):
+    return {
+        "name": "",
+        "showModal": False,
+        "message": "",
     }
-]
+
+
+def increment(request, data):
+    return {
+        "name": "Ankur",
+    }
+
+
+def saveUser(request, data):
+    return {
+        "message": "Saved Successfully",
+    }
+
+{% enddjact %}
+
+<div dj:state="name='', showModal=false, message=''">
+    <h1>[[ name ]]</h1>
+
+    <button dj:click="increment">Increment</button>
+
+    <button dj:function="setState(showModal=true)">
+        Open Modal
+    </button>
+
+    <form dj:submit="saveUser">
+        <button type="submit">Save</button>
+    </form>
+
+    <p>[[ message ]]</p>
+</div>
+
+<script>
+    window.methods = window.methods || {};
+    window.methods.saveUser = async (state, setState) => {
+        // client-only method example
+        setState({ message: "Client Saved" });
+    };
+</script>
 ```
 
-### 3.4 `STATIC_URL`
+## Directives
 
-```python
-STATIC_URL = "/static/"
-```
+### `dj:state`
 
-If you already have static settings, keep them as they are.
-
----
-
-## 4) Django view (render step)
-
-Create a view that returns a Djact page.
-
-```python
-from djact.render import djact_render
-
-def home(request):
-    return djact_render(request, "Home", {"message": "Hello from Django"})
-```
-
-This view sends:
-
-- `component`: the string name (here `"Home"`)
-- `props`: the data dict
-- `url`: current path
-
----
-
-## 5) Django URLs
-
-```python
-from django.urls import path
-from .views import home
-
-urlpatterns = [
-    path("", home, name="home"),
-]
-```
-
----
-
-## 6) HTML template and static files (where they are)
-
-Djact ships its own HTML template and expects your JS bundle in a specific place:
-
-- Template: `djact/templates/djact.html`
-- Client runtime: `djact/static/app.js`
-
-The template already includes:
+Initial state for the component.
 
 ```html
-<div id="app" data-page="{{ page|safe }}"></div>
-<script type="module" src="{% static 'app.js' %}"></script>
+<div dj:state="name='', showModal=false"></div>
 ```
 
-So you do NOT need to create your own template unless you want to customize it.
+### `dj:click`
 
----
+Calls a server method.
 
-## 7) React bundle (must be created once)
-
-You must build a React bundle and place it at:
-
-```
-djact/static/app.js
+```html
+<button dj:click="increment">Increment</button>
 ```
 
-Below is the full step-by-step setup using Vite.
+### `dj:submit`
 
----
+Handles form submit and calls server method.
 
-## 8) React setup with Vite (full steps)
-
-### 8.1 Initialize npm
-
-```bash
-npm init -y
+```html
+<form dj:submit="saveUser">
+  <button type="submit">Save</button>
+</form>
 ```
 
-### 8.2 Install React
+### `dj:function`
 
-```bash
-npm install react react-dom
+Calls client methods or `setState()`.
+
+```html
+<button dj:function="setState(showModal=true)">Open</button>
 ```
 
-### 8.3 Install Vite
+## Example Project
 
-```bash
-npm install -D vite @vitejs/plugin-react
-```
+A minimal working page is possible with only one template and a view-less setup because Djact uses the `/djact` endpoint for actions.
 
-### 8.4 Create `vite.config.js`
+## Comparison
 
-```javascript
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+- **Livewire**: server re-renders HTML. Djact returns JSON only.
+- **HTMX**: HTML fragments. Djact uses JSON and client-side rendering.
+- **Alpine**: client-only. Djact adds optional server actions.
 
-export default defineConfig({
-  plugins: [react()],
-  build: {
-    outDir: "./djact/static",
-    rollupOptions: {
-      output: {
-        entryFileNames: "app.js",
-        chunkFileNames: "app.js",
-        assetFileNames: "[name].[ext]",
-      },
-    },
-  },
-});
-```
-
-### 8.5 Create your entry file `src/main.js`
-
-```javascript
-import { bootstrap } from "../djact/djact/index.js";
-bootstrap();
-```
-
-This file is the entry point that boots Djact on the browser side.
-
-### 8.6 Build
-
-```bash
-npx vite build
-```
-
-After build, the output file must exist at:
-
-```
-djact/static/app.js
-```
-
----
-
-## 9) Example React files you already get
-
-Inside the package you already have example files:
-
-- `djact/djact/App.jsx`
-- `djact/djact/index.js`
-
-`App.jsx` is a minimal React component.
-`index.js` is a minimal resolver + bootstrap.
-
-You can replace these later with your own pages, but the default works for testing.
-
----
-
-## 10) How render + data flow works
-
-1. Django view calls `djact_render()`.
-2. Server builds a payload:
-   - `component` (string name)
-   - `props` (dict)
-   - `url` (current path)
-3. First request returns HTML (`djact/templates/djact.html`).
-4. HTML embeds JSON in `data-page`.
-5. Browser loads `djact/static/app.js`.
-6. React mounts and renders the component.
-7. Next navigation sends `X-Djact: true`.
-8. Server returns JSON and React swaps the component.
-
----
-
-## 11) Passing props from Django to React
-
-```python
-return djact_render(request, "Home", {"user": "Ankur", "count": 12})
-```
-
-In React you read it normally:
-
-```jsx
-export default function Home(props) {
-  return <div>{props.user}</div>;
-}
-```
-
----
-
-## 12) Shared props on every page
-
-```python
-request.djact.share("authUser", {"name": "Ankur"})
-```
-
-This data is automatically merged into every `djact_render()` response.
-
----
-
-## 13) Login / redirect issue (fix)
-
-If login redirects do not work during Djact navigation:
-
-1) Ensure `DjactMiddleware` is enabled.
-2) Use normal Django `redirect()` in your login view.
-3) Use `Link` or `djactVisit()` on the frontend so `X-Djact` is sent.
-
-Djact middleware adds `X-Djact-Location` to redirects, and the client performs a hard redirect when needed.
-
----
-
-## 14) Run Django
-
-```bash
-python manage.py runserver
-```
-
-Open:
-
-```
-http://127.0.0.1:8000/
-```
-
----
-
-## 15) Final checklist
-
-- [ ] `djact` installed
-- [ ] `DjactMiddleware` enabled
-- [ ] `djact_render()` used in views
-- [ ] `djact/static/app.js` built
-- [ ] Template loads and React mounts
-
----
-
-## Package layout (reference)
+## Folder Structure
 
 ```text
 djact/
-├── djact/
-│   ├── __init__.py
-│   ├── apps.py
-│   ├── middleware.py
-│   ├── render.py
-│   ├── utils.py
-│   ├── static/
-│   │   └── app.js
-│   ├── templates/
-│   │   └── djact.html
+├── __init__.py
+├── apps.py
+├── views.py
+├── parser.py
+├── registry.py
+├── urls.py
+├── templatetags/
+│   └── djact.py
+├── static/
 │   └── djact/
-│       ├── App.jsx
-│       └── index.js
-├── pyproject.toml
-└── README.md
+│       ├── core.js
+│       ├── state.js
+│       ├── renderer.js
+│       ├── renderer_expr.js
+│       ├── directives.js
+│       └── api.js
 ```
+
+## Notes
+
+- All server responses are JSON only.
+- `mount()` runs on page load.
+- All methods are plain Python functions.

@@ -1,46 +1,77 @@
-from django.http import HttpResponseRedirect
-from djact.utils import is_djact_request
+from __future__ import annotations
 
-class Djact:
-    """Helper attached to request.djact to manage shared data."""
-    def __init__(self):
-        self._shared_data = {}
+from django.conf import settings
+from django.middleware.csrf import get_token
 
-    def share(self, key, value):
-        """Share data with all Djact responses in this request cycle."""
-        self._shared_data[key] = value
 
-    def get_shared(self):
-        return self._shared_data
-
-class DjactMiddleware:
-    """Annotate incoming requests and provide a response-level extension hook.
-
-    Attaches ``request.is_djact`` (``bool``) and ``request.djact`` (shared data helper).
-    """
+class DjactAutoLoadMiddleware:
+    """Auto-inject Djact assets for templates ending with .dj.html."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        # --- request phase ---
-        request.is_djact = is_djact_request(request)
-        request.djact = Djact()
-
         response = self.get_response(request)
 
-        # Handle redirects for Djact requests
-        if request.is_djact and isinstance(response, HttpResponseRedirect):
-            # Tell the JS engine where we are going
-            response['X-Djact-Location'] = response['Location']
+        if not _is_html_response(response):
+            return response
 
-        # --- response phase ---
-        return self._process_response(request, response)
+        if not _is_djact_template(response):
+            return response
 
-    # ------------------------------------------------------------------
-    # Extension hooks
-    # ------------------------------------------------------------------
+        charset = getattr(response, "charset", "utf-8")
+        content = response.content.decode(charset)
 
-    def _process_response(self, request, response):
-        """Override in a subclass to add response-level Djact logic."""
+        content = _ensure_csrf_meta(content, request)
+        content = _inject_auto_script(content)
+
+        response.content = content.encode(charset)
+        response["Content-Length"] = str(len(response.content))
         return response
+
+
+def _is_html_response(response) -> bool:
+    content_type = response.get("Content-Type", "")
+    return "text/html" in content_type
+
+
+def _is_djact_template(response) -> bool:
+    template_name = getattr(response, "template_name", None)
+    if template_name is None:
+        return False
+
+    if isinstance(template_name, (list, tuple)):
+        return any(str(name).endswith(".dj.html") for name in template_name)
+
+    return str(template_name).endswith(".dj.html")
+
+
+def _ensure_csrf_meta(content: str, request) -> str:
+    if "meta name=\"csrf-token\"" in content or "meta name='csrf-token'" in content:
+        return content
+
+    token = get_token(request)
+    meta = f"<meta name=\"csrf-token\" content=\"{token}\">"
+
+    if "<head>" in content:
+        return content.replace("<head>", "<head>\n    " + meta, 1)
+
+    return meta + content
+
+
+def _inject_auto_script(content: str) -> str:
+    static_url = settings.STATIC_URL or "/static/"
+    if not static_url.endswith("/"):
+        static_url += "/"
+
+    script = (
+        f"<script type=\"module\" src=\"{static_url}djact/auto.js\"></script>"
+    )
+
+    if script in content:
+        return content
+
+    if "</body>" in content:
+        return content.replace("</body>", f"\n    {script}\n</body>", 1)
+
+    return content + script

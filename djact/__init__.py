@@ -1,10 +1,10 @@
 """
-djact — Inertia.js-like bridge between Django and React.
+djact — lightweight HTML-first interaction for Django.
 """
 
 default_app_config = "djact.apps.DjactConfig"
 
-from djact.render import djact_render  # noqa: E402, F401
+from djact.views import djact_endpoint  # noqa: E402, F401
 
-__all__ = ["djact_render"]
-__version__ = "1.0.0"
+__all__ = ["djact_endpoint"]
+__version__ = "2.0.1"

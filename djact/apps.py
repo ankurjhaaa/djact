@@ -7,4 +7,4 @@ class DjactConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self):
-        pass  # Reserved for signal registration or startup hooks
+        pass
