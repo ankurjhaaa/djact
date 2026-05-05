@@ -16,11 +16,11 @@ class DjactAutoLoadMiddleware:
         if not _is_html_response(response):
             return response
 
-        if not _is_djact_template(response):
-            return response
-
         charset = getattr(response, "charset", "utf-8")
         content = response.content.decode(charset)
+
+        if not _is_djact_template(response, content):
+            return response
 
         content = _ensure_csrf_meta(content, request)
         content = _inject_auto_script(content)
@@ -35,10 +35,10 @@ def _is_html_response(response) -> bool:
     return "text/html" in content_type
 
 
-def _is_djact_template(response) -> bool:
+def _is_djact_template(response, content: str) -> bool:
     template_name = getattr(response, "template_name", None)
     if template_name is None:
-        return False
+        return "dj:state" in content
 
     if isinstance(template_name, (list, tuple)):
         return any(str(name).endswith(".dj.html") for name in template_name)
