@@ -1,5 +1,7 @@
 import { evaluateExpression } from "./renderer_expr.js";
 
+const _templateCache = new WeakMap();
+
 export function render(root, state) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
   const nodes = [];
@@ -8,10 +10,14 @@ export function render(root, state) {
   }
 
   for (const node of nodes) {
-    const text = node.nodeValue;
-    if (!text || !text.includes("[[")) continue;
+    const original = _templateCache.get(node) ?? node.nodeValue;
+    if (!_templateCache.has(node)) {
+      _templateCache.set(node, original || "");
+    }
 
-    const updated = text.replace(/\[\[([^\]]+)\]\]/g, (_, expr) => {
+    if (!original || !original.includes("[[")) continue;
+
+    const updated = original.replace(/\[\[([^\]]+)\]\]/g, (_, expr) => {
       try {
         return String(evaluateExpression(expr.trim(), state));
       } catch {

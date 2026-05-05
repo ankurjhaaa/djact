@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "djact"
-version = "2.0.2"
+version = "2.0.3"
 description = "HTML-first frontend interaction for Django, JSON-only server, and client-side DOM updates."
 readme = "README.md"
 license = { file = "LICENSE" }

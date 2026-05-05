@@ -1,3 +1,7 @@
 import { bootstrap } from "./core.js";
 
-bootstrap();
+if (document.readyState === "loading") {
+	document.addEventListener("DOMContentLoaded", bootstrap);
+} else {
+	bootstrap();
+}

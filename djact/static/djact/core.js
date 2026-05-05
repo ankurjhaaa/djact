@@ -11,6 +11,7 @@ export function bootstrap() {
 
   function setState(updates) {
     state = { ...state, ...updates };
+    window.djact.state = state;
     render(root, state);
   }
 
