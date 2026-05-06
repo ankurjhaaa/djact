@@ -1,3 +1,13 @@
+/**
+ * djact/renderer.js — DOM Update Engine.
+ *
+ * Handles:
+ * - [[ expression ]] interpolation in text nodes and attributes.
+ * - dj:for loop unrolling.
+ * - dj:if conditional display.
+ * - dj:empty visibility toggle.
+ * - dj:paginate rendering.
+ */
 import { evaluateExpression } from "./renderer_expr.js";
 
 const _templateCache = new WeakMap();
@@ -8,12 +18,14 @@ let _forId = 0;
 
 export function render(root, state) {
   applyLoops(root, state);
+  
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
   const nodes = [];
   while (walker.nextNode()) {
     nodes.push(walker.currentNode);
   }
 
+  // 1. Text node interpolation
   for (const node of nodes) {
     const original = _templateCache.get(node) ?? node.nodeValue;
     if (!_templateCache.has(node)) {
@@ -25,59 +37,97 @@ export function render(root, state) {
     const scope = resolveScope(node, state);
     const updated = original.replace(/\[\[([^\]]+)\]\]/g, (_, expr) => {
       try {
-        return String(evaluateExpression(expr.trim(), scope));
+        const val = evaluateExpression(expr.trim(), scope);
+        // Don't render "null" or "undefined" as string
+        return (val == null) ? "" : String(val);
       } catch {
         return "";
       }
     });
 
-    node.nodeValue = updated;
+    if (node.nodeValue !== updated) {
+      node.nodeValue = updated;
+    }
   }
 
-  // Attribute interpolation (class, data-*, etc.)
+  // 2. Element directives & attributes
   const elements = root.querySelectorAll("*");
   elements.forEach((el) => {
+    
+    // Sync dj:model with state
+    if (el.hasAttribute("dj:model")) {
+      const key = el.getAttribute("dj:model");
+      if (state[key] !== undefined) {
+        if (el.type === "checkbox") {
+          el.checked = !!state[key];
+        } else if (el.value !== state[key]) {
+          el.value = state[key];
+        }
+      }
+    }
+
+    // Interpolate standard attributes and dj:extra
     const cache = _attrCache.get(el) || new Map();
     for (const attr of Array.from(el.attributes)) {
-      if (attr.name.startsWith("dj:")) continue;
+      // Don't interpolate inside framework directives, except dj:extra
+      if (attr.name.startsWith("dj:") && attr.name !== "dj:extra") continue;
+      
       const original = cache.get(attr.name) ?? attr.value;
       if (!cache.has(attr.name)) {
         cache.set(attr.name, original);
       }
+      
       if (!original.includes("[[")) continue;
+      
       const scope = resolveScope(el, state);
       const updated = original.replace(/\[\[([^\]]+)\]\]/g, (_, expr) => {
         try {
-          return String(evaluateExpression(expr.trim(), scope));
+          const val = evaluateExpression(expr.trim(), scope);
+          return (val == null) ? "" : String(val);
         } catch {
           return "";
         }
       });
-      el.setAttribute(attr.name, updated);
+      
+      if (el.getAttribute(attr.name) !== updated) {
+        el.setAttribute(attr.name, updated);
+      }
     }
     _attrCache.set(el, cache);
 
-    // dj:if support
+    // dj:if
     if (el.hasAttribute("dj:if")) {
       const expr = el.getAttribute("dj:if") || "";
       const scope = resolveScope(el, state);
       const show = !!evaluateExpression(expr, scope);
+      
       if (!_displayCache.has(el)) {
         _displayCache.set(el, el.style.display || "");
       }
-      el.style.display = show ? _displayCache.get(el) : "none";
+      
+      const expected = show ? _displayCache.get(el) : "none";
+      if (el.style.display !== expected) {
+        el.style.display = expected;
+      }
     }
 
+    // dj:empty
     if (el.hasAttribute("dj:empty")) {
       const listName = el.getAttribute("dj:empty") || "";
       const list = resolveList(state, listName);
       const show = list.length === 0;
+      
       if (!_displayCache.has(el)) {
         _displayCache.set(el, el.style.display || "");
       }
-      el.style.display = show ? _displayCache.get(el) : "none";
+      
+      const expected = show ? _displayCache.get(el) : "none";
+      if (el.style.display !== expected) {
+        el.style.display = expected;
+      }
     }
 
+    // dj:paginate
     if (el.hasAttribute("dj:paginate")) {
       renderPagination(el, state);
     }
@@ -94,16 +144,20 @@ function applyLoops(root, state) {
     const itemName = match[1];
     const listName = match[2];
     const list = resolveList(state, listName, node.parentElement?.querySelector(`[dj\\:paginate="${listName}"]`));
+    
     const id = node.dataset.djForId || `djfor-${++_forId}`;
     node.dataset.djForId = id;
 
     const parent = node.parentElement;
     if (!parent) return;
 
+    // Remove old clones
     parent.querySelectorAll(`[data-dj-for-clone="${id}"]`).forEach((el) => el.remove());
 
+    // Hide the template node
     node.style.display = "none";
 
+    // Insert new clones
     let insertAfter = node;
     list.forEach((item, index) => {
       const clone = node.cloneNode(true);
@@ -111,8 +165,10 @@ function applyLoops(root, state) {
       clone.style.display = "";
       clone.dataset.djForClone = id;
       clone.dataset.djIndex = String(index);
+      
       const scope = { ...state, [itemName]: item, $index: index };
       _scopeCache.set(clone, scope);
+      
       insertAfter.after(clone);
       insertAfter = clone;
     });
@@ -181,12 +237,11 @@ function renderPagination(container, state) {
     last = value.last_page || 1;
     method = value.method || "paginate";
   } else if (Array.isArray(value)) {
-    // Client-side pagination for plain arrays
     const perPage = resolvePerPage(container, state, key);
     const pages = state.__djact_page || {};
     current = (typeof pages[key] === "number") ? pages[key] : 1;
     last = Math.ceil(value.length / perPage);
-    method = null; // No server call needed
+    method = null;
   } else {
     container.innerHTML = "";
     return;
@@ -206,6 +261,7 @@ function renderPagination(container, state) {
   }
   buttons.push(renderPageButton("Next", current + 1, nextDisabled));
 
+  // Quick diff to avoid losing focus if not necessary, but for pagination innerHTML is fine
   container.innerHTML = "";
   buttons.forEach((btn) => container.appendChild(btn));
 }

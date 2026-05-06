@@ -1,13 +1,13 @@
-# Djact
+# Djact v3.0
 
-Djact is a lightweight HTML-first interaction system for Django. It is **not** React, **not** Inertia, and **not** Livewire. The server returns JSON only, and the client updates the DOM.
+Djact is a lightweight, Livewire-style HTML-first interaction system for Django. It is **not** React, **not** Inertia. The server returns JSON only, and the client updates the DOM.
 
-## Why Djact
-
+## Features
 - Write backend logic and HTML in the **same template**.
-- Simple directives like `dj:click` and `dj:submit`.
-- No HTML re-rendering from server.
-- A tiny client runtime that updates DOM based on state.
+- Full support for Python imports (`from myapp.models import Task`).
+- `dj:component` namespace isolation (multiple components per page).
+- Two-way data binding with `dj:model`.
+- Simple directives like `dj:click`, `dj:submit`, `dj:extra`.
 
 ## Installation
 
@@ -33,11 +33,11 @@ from django.urls import path, include
 
 urlpatterns = [
     # ...
-    path("", include("djact.urls")),
+    path("djact/", include("djact.urls")),
 ]
 ```
 
-### 3) Enable auto-loading for .dj.html
+### 3) Enable Middleware
 
 Add the middleware so Djact assets auto-load for templates ending with `.dj.html`:
 
@@ -48,131 +48,67 @@ MIDDLEWARE = [
 ]
 ```
 
-Now create templates with `.dj.html` extension, and you do NOT need to manually load JS.
+Now create templates with `.dj.html` extension.
 
 ### 4) Template example (home.dj.html)
 
 ```django
 {% load djact %}
 
-{% djact %}
+{% djact "todo" %}
+# You can import models or anything else here!
+# from myapp.models import Task
 
 def mount(request):
     return {
-        "name": "",
-        "showModal": False,
-        "message": "",
+        "tasks": [{"id": 1, "title": "Buy Milk"}, {"id": 2, "title": "Read Book"}],
+        "new_title": "",
     }
 
+def add_task(request, data):
+    new_task = {"id": len(data["tasks"]) + 1, "title": data["new_title"]}
+    tasks = data["tasks"]
+    tasks.append(new_task)
+    return {"tasks": tasks, "new_title": ""}
 
-def increment(request, data):
-    return {
-        "name": "Ankur",
-    }
-
-
-def saveUser(request, data):
-    return {
-        "message": "Saved Successfully",
-    }
-
+def delete_task(request, data):
+    task_id = data["__extra"]["id"]
+    tasks = [t for t in data["tasks"] if t["id"] != task_id]
+    return {"tasks": tasks}
 {% enddjact %}
 
-<div dj:state="name='', showModal=false, message=''">
-    <h1>[[ name ]]</h1>
+<div dj:component="todo">
+    <h1>Todos ([[ tasks.length ]])</h1>
 
-    <button dj:click="increment">Increment</button>
-
-    <button dj:function="setState(showModal=true)">
-        Open Modal
-    </button>
-
-    <form dj:submit="saveUser">
-        <button type="submit">Save</button>
+    <form dj:submit="add_task">
+        <input dj:model="new_title" placeholder="New task..." />
+        <button type="submit">Add</button>
     </form>
 
-    <p>[[ message ]]</p>
-</div>
+    <ul>
+        <li dj:for="task in tasks">
+            [[ task.title ]] 
+            <button dj:click="delete_task" dj:extra="id=task.id">Delete</button>
+        </li>
+    </ul>
 
-<script>
-    window.methods = window.methods || {};
-    window.methods.saveUser = async (state, setState) => {
-        // client-only method example
-        setState({ message: "Client Saved" });
-    };
-</script>
+    <p dj:empty="tasks">No tasks yet!</p>
+</div>
 ```
 
 ## Directives
 
-### `dj:state`
-
-Initial state for the component.
-
-```html
-<div dj:state="name='', showModal=false"></div>
-```
-
-### `dj:click`
-
-Calls a server method.
-
-```html
-<button dj:click="increment">Increment</button>
-```
-
-### `dj:submit`
-
-Handles form submit and calls server method.
-
-```html
-<form dj:submit="saveUser">
-  <button type="submit">Save</button>
-</form>
-```
-
-### `dj:function`
-
-Calls client methods or `setState()`.
-
-```html
-<button dj:function="setState(showModal=true)">Open</button>
-```
-
-## Example Project
-
-A minimal working page is possible with only one template and a view-less setup because Djact uses the `/djact` endpoint for actions.
-
-## Comparison
-
-- **Livewire**: server re-renders HTML. Djact returns JSON only.
-- **HTMX**: HTML fragments. Djact uses JSON and client-side rendering.
-- **Alpine**: client-only. Djact adds optional server actions.
-
-## Folder Structure
-
-```text
-djact/
-├── __init__.py
-├── apps.py
-├── views.py
-├── parser.py
-├── registry.py
-├── urls.py
-├── templatetags/
-│   └── djact.py
-├── static/
-│   └── djact/
-│       ├── core.js
-│       ├── state.js
-│       ├── renderer.js
-│       ├── renderer_expr.js
-│       ├── directives.js
-│       └── api.js
-```
+- `dj:component="name"`: Links a DOM tree to a named Python component. Replaces `dj:state`.
+- `dj:model="field"`: Two-way data binding for inputs.
+- `dj:click="method"`: Calls a server method.
+- `dj:submit="method"`: Calls a server method on form submit.
+- `dj:extra="key=value"`: Passes extra payload data to the server.
+- `dj:for="item in list"`: Repeats an element.
+- `dj:if="condition"`: Conditionally toggles display.
+- `dj:empty="list"`: Shows only if the list is empty.
+- `dj:paginate="list"`: Automatically handles pagination limits.
 
 ## Notes
 
-- All server responses are JSON only.
-- `mount()` runs on page load.
-- All methods are plain Python functions.
+- `mount()` is mandatory for every component.
+- The Python code inside `{% djact %}` runs at request time with access to the full Django environment.
