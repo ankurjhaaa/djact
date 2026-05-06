@@ -93,7 +93,7 @@ function applyLoops(root, state) {
 
     const itemName = match[1];
     const listName = match[2];
-    const list = resolveList(state, listName);
+    const list = resolveList(state, listName, node.parentElement?.querySelector(`[dj\\:paginate="${listName}"]`));
     const id = node.dataset.djForId || `djfor-${++_forId}`;
     node.dataset.djForId = id;
 
@@ -110,6 +110,7 @@ function applyLoops(root, state) {
       clone.removeAttribute("dj:for");
       clone.style.display = "";
       clone.dataset.djForClone = id;
+      clone.dataset.djIndex = String(index);
       const scope = { ...state, [itemName]: item, $index: index };
       _scopeCache.set(clone, scope);
       insertAfter.after(clone);
@@ -129,28 +130,71 @@ function resolveScope(node, state) {
   return state;
 }
 
-function resolveList(state, listName) {
+function resolvePerPage(container, state, key) {
+  const attrPer = container.getAttribute("dj:per-page");
+  if (attrPer) {
+    return Number(attrPer) || 20;
+  }
+  const perPages = state.__djact_per_page || {};
+  return (typeof perPages[key] === "number") ? perPages[key] : 20;
+}
+
+function resolveList(state, listName, container = null) {
   if (!listName) return [];
   const value = state[listName];
   if (!value) return [];
-  if (Array.isArray(value)) return value;
-  if (Array.isArray(value.data)) return value.data;
+  
+  // Check if server-side pagination response
+  if (value.data && typeof value.current_page === "number") {
+    return value.data;
+  }
+  
+  // Client-side pagination: slice array based on page
+  if (Array.isArray(value)) {
+    if (!container) return value;
+    
+    const perPage = resolvePerPage(container, state, listName);
+    const pages = state.__djact_page || {};
+    const page = (typeof pages[listName] === "number") ? pages[listName] : 1;
+    const start = (page - 1) * perPage;
+    const end = start + perPage;
+    
+    return value.slice(start, end);
+  }
+  
   return [];
 }
 
 function renderPagination(container, state) {
   const key = container.getAttribute("dj:paginate") || "";
   const value = state[key];
-  if (!value || !value.data || typeof value.current_page !== "number") {
+  if (!value) {
     container.innerHTML = "";
     return;
   }
 
-  const current = value.current_page;
-  const last = value.last_page || 1;
-  const method = value.method || "paginate";
-  container.dataset.djPaginateMethod = method;
+  const isServerPagination = value.data && typeof value.current_page === "number";
+  
+  let current, last, method;
+  if (isServerPagination) {
+    current = value.current_page;
+    last = value.last_page || 1;
+    method = value.method || "paginate";
+  } else if (Array.isArray(value)) {
+    // Client-side pagination for plain arrays
+    const perPage = resolvePerPage(container, state, key);
+    const pages = state.__djact_page || {};
+    current = (typeof pages[key] === "number") ? pages[key] : 1;
+    last = Math.ceil(value.length / perPage);
+    method = null; // No server call needed
+  } else {
+    container.innerHTML = "";
+    return;
+  }
+
+  container.dataset.djPaginateMethod = method || "paginate";
   container.dataset.djPaginateKey = key;
+  container.dataset.djPaginateIsServer = String(isServerPagination);
 
   const buttons = [];
   const prevDisabled = current <= 1;

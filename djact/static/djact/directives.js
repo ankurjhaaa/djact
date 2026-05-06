@@ -16,16 +16,22 @@ export function bindDirectives(root, getState, setState) {
       const expr = funcNode.getAttribute("dj:function");
       if (!expr) return;
       if (expr.startsWith("setState(")) {
-        const args = expr.slice(9, -1);
-        const updates = parseUpdatesString(args, getState());
-        setState(updates);
+        const start = expr.indexOf("(") + 1;
+        const end = expr.lastIndexOf(")");
+        const args = expr.slice(start, end);
+        // Use functional updater to avoid stale-state races
+        setState((prev) => {
+          const updates = parseUpdatesString(args, prev || {});
+          return { ...prev, ...updates };
+        });
       } else {
         const call = parseFunctionCall(expr);
         if (!call) return;
         const { name, args } = call;
         if (window.methods && typeof window.methods[name] === "function") {
           const evaluated = args.map((arg) => evaluateExpression(arg, getState()));
-          window.methods[name](...evaluated, getState(), setState);
+          // pass the element as the last argument so methods can access DOM/data
+          window.methods[name](...evaluated, getState(), setState, funcNode);
         }
       }
       return;
@@ -36,7 +42,12 @@ export function bindDirectives(root, getState, setState) {
       event.preventDefault();
       const method = clickNode.getAttribute("dj:click");
       if (!method) return;
-      callServer(method, getState()).then((result) => {
+      // If the click is inside a dj:for clone, include its index in payload
+      const clone = clickNode.closest('[data-dj-for-clone]');
+      const idx = clone && clone.dataset && typeof clone.dataset.djIndex !== 'undefined' ? Number(clone.dataset.djIndex) : undefined;
+      const payload = { ...getState() };
+      if (typeof idx === 'number' && !Number.isNaN(idx)) payload.index = idx;
+      callServer(method, payload).then((result) => {
         if (result) setState(result);
       });
       return;
@@ -48,12 +59,21 @@ export function bindDirectives(root, getState, setState) {
       if (!container) return;
       event.preventDefault();
       const page = Number(pageButton.getAttribute("data-dj-page"));
-      const method = container.dataset.djPaginateMethod || "paginate";
       const key = container.dataset.djPaginateKey || container.getAttribute("dj:paginate") || "";
-      const payload = { ...getState(), __page: page, __paginate: key };
-      callServer(method, payload).then((result) => {
-        if (result) setState(result);
-      });
+      const isServerPagination = container.dataset.djPaginateIsServer === "true";
+      
+      if (isServerPagination) {
+        const method = container.dataset.djPaginateMethod || "paginate";
+        const payload = { ...getState(), __page: page, __paginate: key };
+        callServer(method, payload).then((result) => {
+          if (result) setState(result);
+        });
+      } else {
+        // Client-side pagination: just update state
+        const pages = { ...(getState().__djact_page || {}) };
+        pages[key] = page;
+        setState({ __djact_page: pages });
+      }
       return;
     }
   });
@@ -66,7 +86,12 @@ export function bindDirectives(root, getState, setState) {
     event.preventDefault();
     const method = submitNode.getAttribute("dj:submit");
     if (!method) return;
-    callServer(method, getState()).then((result) => {
+    // include index if inside a dj:for clone
+    const clone = submitNode.closest('[data-dj-for-clone]');
+    const idx = clone && clone.dataset && typeof clone.dataset.djIndex !== 'undefined' ? Number(clone.dataset.djIndex) : undefined;
+    const payload = { ...getState(), ...collectFormValues(submitNode) };
+    if (typeof idx === 'number' && !Number.isNaN(idx)) payload.index = idx;
+    callServer(method, payload).then((result) => {
       if (result) setState(result);
     });
   });
@@ -121,4 +146,15 @@ function splitArgs(argString) {
   }
 
   return args;
+}
+
+function collectFormValues(node) {
+  const form = node instanceof HTMLFormElement ? node : node.closest("form");
+  if (!form) return {};
+  const data = new FormData(form);
+  const out = {};
+  for (const [key, value] of data.entries()) {
+    out[key] = value;
+  }
+  return out;
 }

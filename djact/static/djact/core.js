@@ -14,7 +14,11 @@ export function bootstrap() {
   }
 
   function setState(updates) {
-    state = { ...state, ...updates };
+    if (typeof updates === "function") {
+      state = { ...state, ...updates(state) };
+    } else {
+      state = { ...state, ...updates };
+    }
     window.djact.state = state;
     render(root, state);
   }

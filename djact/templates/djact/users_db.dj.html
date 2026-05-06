@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load djact %}
+
+{% block title %}Users (DB CRUD){% endblock %}
+
+{% block content %}
+{% djact %}
+def mount(request):
+  from django.contrib.auth.models import User
+  users = list(User.objects.values_list("username", flat=True))
+  return {"users": users, "last_msg": "", "new_user": ""}
+
+def add_user(request, data):
+  from django.contrib.auth.models import User
+  name = (data.get("new_user") or "").strip()
+  if name:
+    User.objects.create(username=name)
+  users = list(User.objects.values_list("username", flat=True))
+  msg = f"Added {name}" if name else ""
+  return {"users": users, "last_msg": msg, "new_user": ""}
+
+def remove_user(request, data):
+    from django.contrib.auth.models import User
+    idx = data.get("index")
+    try:
+        idx = int(idx)
+    except Exception:
+        idx = None
+    users = list(User.objects.values_list("username", flat=True))
+    if idx is not None and 0 <= idx < len(users):
+        username = users[idx]
+        User.objects.filter(username=username).delete()
+        users = list(User.objects.values_list("username", flat=True))
+        return {"users": users, "last_msg": f"Removed {username}"}
+    return {"users": users}
+
+def call_user(request, data):
+    from django.contrib.auth.models import User
+    idx = data.get("index")
+    try:
+        idx = int(idx)
+    except Exception:
+        idx = None
+    users = list(User.objects.values_list("username", flat=True))
+    msg = ""
+    if idx is not None and 0 <= idx < len(users):
+        msg = f"Called {users[idx]}"
+    return {"last_msg": msg}
+{% enddjact %}
+
+<div dj:state="users=null, last_msg='', new_user=''" class="max-w-3xl mx-auto p-6">
+  <h1 class="text-3xl font-extrabold mb-4">Users (DB-backed)</h1>
+
+  <form dj:submit="add_user" class="flex flex-col sm:flex-row gap-2 mb-4">
+    <input
+      type="text"
+      name="new_user"
+      placeholder="Enter username"
+      class="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring focus:ring-blue-200"
+    />
+    <button type="submit" class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700">Add user</button>
+    <button type="button" dj:click="mount" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Reload</button>
+  </form>
+
+  <div class="bg-white shadow rounded">
+    <ul class="divide-y">
+      <li class="px-4 py-3 font-medium text-gray-700 bg-gray-50">Name <span class="float-right">Actions</span></li>
+      <li dj:for="u in users" class="px-4 py-3 flex items-center justify-between">
+        <div class="text-gray-900">[[ u ]]</div>
+        <div class="flex gap-2">
+          <button dj:click="call_user" class="px-2 py-1 bg-indigo-500 text-white rounded hover:bg-indigo-600">Call</button>
+          <button dj:click="remove_user" class="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600">Remove</button>
+        </div>
+      </li>
+      <li dj:empty="users" class="px-4 py-6 text-center text-gray-500">No users yet.</li>
+    </ul>
+  </div>
+
+  <p class="mt-4 text-sm text-gray-600">[[ last_msg ]]</p>
+</div>
+
+{% endblock %}
