@@ -49,8 +49,9 @@ export function bindDirectives(root, componentName, getState, setState) {
         const start = expr.indexOf("(") + 1;
         const end = expr.lastIndexOf(")");
         const args = expr.slice(start, end);
+        const scope = resolveScope(funcNode, getState());
         setState((prev) => {
-          const updates = parseUpdatesString(args, prev || {});
+          const updates = parseUpdatesString(args, scope);
           return { ...prev, ...updates };
         });
       } else {
