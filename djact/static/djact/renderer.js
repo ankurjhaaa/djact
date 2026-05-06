@@ -22,7 +22,9 @@ export function render(root, state) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
   const nodes = [];
   while (walker.nextNode()) {
-    nodes.push(walker.currentNode);
+    const node = walker.currentNode;
+    if (node.parentElement && node.parentElement.closest("[dj\\:for]")) continue;
+    nodes.push(node);
   }
 
   // 1. Text node interpolation
@@ -53,6 +55,7 @@ export function render(root, state) {
   // 2. Element directives & attributes
   const elements = root.querySelectorAll("*");
   elements.forEach((el) => {
+    if (el.closest("[dj\\:for]")) return;
     
     // Sync dj:model with state
     if (el.hasAttribute("dj:model")) {

@@ -11,34 +11,37 @@ def get_users():
 def mount(request):
     return {
         "users": get_users(),
-        "form": {"username": "", "email": ""},
+        "username": "",
+        "email": "",
         "editing_id": None,
         "error": ""
     }
 
 # Create or Update logic
 def save_user(request, data):
-    form = data["form"]
-    editing_id = data["editing_id"]
+    username = data.get("username", "")
+    email = data.get("email", "")
+    editing_id = data.get("editing_id")
     
-    if not form["username"]:
+    if not username:
         return {"error": "Username is required!"}
         
     try:
         if editing_id:
             # Update existing user
             user = User.objects.get(id=editing_id)
-            user.username = form["username"]
-            user.email = form["email"]
+            user.username = username
+            user.email = email
             user.save()
         else:
             # Create new user
-            User.objects.create_user(username=form["username"], email=form["email"])
+            User.objects.create_user(username=username, email=email)
             
         # Reset form and return updated user list
         return {
             "users": get_users(),
-            "form": {"username": "", "email": ""},
+            "username": "",
+            "email": "",
             "editing_id": None,
             "error": ""
         }
@@ -49,7 +52,8 @@ def save_user(request, data):
 def edit_user(request, data, user_id):
     user = User.objects.get(id=user_id)
     return {
-        "form": {"username": user.username, "email": user.email},
+        "username": user.username,
+        "email": user.email,
         "editing_id": user.id,
         "error": ""
     }
@@ -62,7 +66,8 @@ def delete_user(request, data, user_id):
 # Cancel edit mode
 def cancel_edit(request, data):
     return {
-        "form": {"username": "", "email": ""},
+        "username": "",
+        "email": "",
         "editing_id": None,
         "error": ""
     }
@@ -100,12 +105,12 @@ def cancel_edit(request, data):
             <div>
                 <label class="block text-sm font-bold text-slate-600 mb-1">Username</label>
                 <!-- Two-way binding via dj:model -->
-                <input type="text" dj:model="form.username" class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="john_doe">
+                <input type="text" dj:model="username" class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="john_doe">
             </div>
             <div>
                 <label class="block text-sm font-bold text-slate-600 mb-1">Email Address</label>
                 <!-- Two-way binding via dj:model -->
-                <input type="email" dj:model="form.email" class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="john@example.com">
+                <input type="email" dj:model="email" class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="john@example.com">
             </div>
         </div>
         
