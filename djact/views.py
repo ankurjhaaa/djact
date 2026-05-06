@@ -52,11 +52,15 @@ def djact_endpoint(request):
 
     # --- execute ----------------------------------------------------------
     try:
+        passed_args = data.get("__args", [])
         params = list(inspect.signature(handler).parameters.values())
-        if len(params) == 1:
-            result = handler(request)
+        
+        if len(params) > 1 and params[1].name == "data":
+            result = handler(request, data, *passed_args)
+        elif len(params) > 1:
+            result = handler(request, *passed_args)
         else:
-            result = handler(request, data)
+            result = handler(request)
     except Exception as exc:
         debug = getattr(settings, "DEBUG", False)
         detail = str(exc) if debug else "Internal server error"

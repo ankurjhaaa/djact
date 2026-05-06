@@ -10,6 +10,7 @@
 import { callServer } from "./api.js";
 import { parseUpdatesString } from "./state.js";
 import { evaluateExpression } from "./renderer_expr.js";
+import { resolveScope } from "./renderer.js";
 
 export function bindDirectives(root, componentName, getState, setState) {
   // -------------------------------------------------------------------------
@@ -70,10 +71,19 @@ export function bindDirectives(root, componentName, getState, setState) {
     const clickNode = target.closest("[dj\\:click]");
     if (clickNode) {
       event.preventDefault();
-      const method = clickNode.getAttribute("dj:click");
-      if (!method) return;
+      const methodStr = clickNode.getAttribute("dj:click");
+      if (!methodStr) return;
+
+      const call = parseFunctionCall(methodStr);
+      const method = call.name;
+      let argsList = [];
+      if (call.args.length > 0) {
+         const scope = resolveScope(clickNode, getState());
+         argsList = call.args.map(arg => evaluateExpression(arg, scope));
+      }
 
       const payload = { ...getState(), ...collectExtras(clickNode) };
+      if (argsList.length > 0) payload.__args = argsList;
       
       // Index for loops
       const clone = clickNode.closest('[data-dj-for-clone]');
@@ -125,14 +135,23 @@ export function bindDirectives(root, componentName, getState, setState) {
     if (!submitNode) return;
     
     event.preventDefault();
-    const method = submitNode.getAttribute("dj:submit");
-    if (!method) return;
+    const methodStr = submitNode.getAttribute("dj:submit");
+    if (!methodStr) return;
+    
+    const call = parseFunctionCall(methodStr);
+    const method = call.name;
+    let argsList = [];
+    if (call.args.length > 0) {
+       const scope = resolveScope(submitNode, getState());
+       argsList = call.args.map(arg => evaluateExpression(arg, scope));
+    }
 
     const payload = { 
       ...getState(), 
       ...collectFormValues(submitNode),
       ...collectExtras(submitNode)
     };
+    if (argsList.length > 0) payload.__args = argsList;
 
     const clone = submitNode.closest('[data-dj-for-clone]');
     if (clone && clone.dataset.djIndex !== undefined) {

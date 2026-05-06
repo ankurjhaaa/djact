@@ -175,7 +175,7 @@ function applyLoops(root, state) {
   });
 }
 
-function resolveScope(node, state) {
+export function resolveScope(node, state) {
   let current = node.nodeType === 1 ? node : node.parentElement;
   while (current) {
     if (_scopeCache.has(current)) {

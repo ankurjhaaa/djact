@@ -1,0 +1,158 @@
+{% load djact %}
+
+{% djact "user_crud" %}
+from django.contrib.auth.models import User
+
+# Helper function to get users as dictionaries (JSON serializable)
+def get_users():
+    return list(User.objects.values("id", "username", "email").order_by("-id")[:50])
+
+# Initial state when page loads
+def mount(request):
+    return {
+        "users": get_users(),
+        "form": {"username": "", "email": ""},
+        "editing_id": None,
+        "error": ""
+    }
+
+# Create or Update logic
+def save_user(request, data):
+    form = data["form"]
+    editing_id = data["editing_id"]
+    
+    if not form["username"]:
+        return {"error": "Username is required!"}
+        
+    try:
+        if editing_id:
+            # Update existing user
+            user = User.objects.get(id=editing_id)
+            user.username = form["username"]
+            user.email = form["email"]
+            user.save()
+        else:
+            # Create new user
+            User.objects.create_user(username=form["username"], email=form["email"])
+            
+        # Reset form and return updated user list
+        return {
+            "users": get_users(),
+            "form": {"username": "", "email": ""},
+            "editing_id": None,
+            "error": ""
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+# Put form in edit mode
+def edit_user(request, data, user_id):
+    user = User.objects.get(id=user_id)
+    return {
+        "form": {"username": user.username, "email": user.email},
+        "editing_id": user.id,
+        "error": ""
+    }
+
+# Delete user
+def delete_user(request, data, user_id):
+    User.objects.filter(id=user_id).delete()
+    return {"users": get_users()}
+
+# Cancel edit mode
+def cancel_edit(request, data):
+    return {
+        "form": {"username": "", "email": ""},
+        "editing_id": None,
+        "error": ""
+    }
+{% enddjact %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Djact User CRUD</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 p-8 font-sans">
+
+<div dj:component="user_crud" class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-slate-800">User Management</h1>
+        <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">Total: [[ users.length ]]</span>
+    </div>
+    
+    <!-- Error Message -->
+    <div dj:if="error" class="bg-red-50 text-red-600 border border-red-200 p-3 rounded-lg mb-6 text-sm font-medium">
+        [[ error ]]
+    </div>
+
+    <!-- User Form -->
+    <form dj:submit="save_user" class="mb-8 bg-slate-50 p-6 rounded-xl border border-slate-200">
+        <h2 class="text-lg font-semibold mb-4 text-slate-700">
+            <span dj:if="editing_id">Edit User #[[ editing_id ]]</span>
+            <span dj:if="!editing_id">Add New User</span>
+        </h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+                <label class="block text-sm font-bold text-slate-600 mb-1">Username</label>
+                <!-- Two-way binding via dj:model -->
+                <input type="text" dj:model="form.username" class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="john_doe">
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-slate-600 mb-1">Email Address</label>
+                <!-- Two-way binding via dj:model -->
+                <input type="email" dj:model="form.email" class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="john@example.com">
+            </div>
+        </div>
+        
+        <div class="flex gap-3 mt-5">
+            <button type="submit" class="bg-blue-600 text-white font-bold px-6 py-2.5 rounded-lg hover:bg-blue-700 transition">
+                <span dj:if="editing_id">Update User</span>
+                <span dj:if="!editing_id">Create User</span>
+            </button>
+            <button type="button" dj:if="editing_id" dj:click="cancel_edit" class="bg-slate-200 text-slate-700 font-bold px-6 py-2.5 rounded-lg hover:bg-slate-300 transition">
+                Cancel
+            </button>
+        </div>
+    </form>
+
+    <!-- User List -->
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="border-b-2 border-slate-200 bg-slate-50">
+                    <th class="p-3 text-sm font-bold text-slate-600">ID</th>
+                    <th class="p-3 text-sm font-bold text-slate-600">Username</th>
+                    <th class="p-3 text-sm font-bold text-slate-600">Email</th>
+                    <th class="p-3 text-sm font-bold text-slate-600 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Iterate over users -->
+                <tr dj:for="user in users" class="border-b border-slate-100 hover:bg-slate-50 transition">
+                    <td class="p-3 text-sm font-medium text-slate-500">[[ user.id ]]</td>
+                    <td class="p-3 text-sm font-bold text-slate-800">[[ user.username ]]</td>
+                    <td class="p-3 text-sm text-slate-600">[[ user.email ]]</td>
+                    <td class="p-3 text-right">
+                        <!-- Arguments passed directly in dj:click -->
+                        <button dj:click="edit_user(user.id)" class="text-blue-600 font-bold text-sm hover:underline mr-4">Edit</button>
+                        <button dj:click="delete_user(user.id)" class="text-red-600 font-bold text-sm hover:underline">Delete</button>
+                    </td>
+                </tr>
+                <!-- Empty state -->
+                <tr dj:empty="users">
+                    <td colspan="4" class="p-8 text-center text-slate-500 font-medium bg-slate-50 rounded-b-xl">
+                        No users found. Create your first user above!
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+</body>
+</html>
