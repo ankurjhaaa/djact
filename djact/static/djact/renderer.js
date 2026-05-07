@@ -131,6 +131,29 @@ export function render(root, state) {
       }
     }
 
+    // dj:error — show element when errors[fieldName] exists
+    if (el.hasAttribute("dj:error")) {
+      const fieldName = el.getAttribute("dj:error") || "";
+      const errors = state.errors || {};
+      const errorMsg = errors[fieldName];
+      const show = !!errorMsg;
+
+      if (!_displayCache.has(el)) {
+        _displayCache.set(el, el.style.display || "");
+      }
+
+      const expected = show ? _displayCache.get(el) : "none";
+      if (el.style.display !== expected) {
+        el.style.display = expected;
+      }
+
+      // Inject 'message' into scope for [[ message ]] rendering
+      if (show) {
+        const scope = { ...resolveScope(el, state), message: errorMsg };
+        _scopeCache.set(el, scope);
+      }
+    }
+
     // dj:paginate
     if (el.hasAttribute("dj:paginate")) {
       renderPagination(el, state);

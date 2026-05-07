@@ -1,46 +1,34 @@
 """
-Example users CRUD component with pagination.
+Example: Users CRUD with pagination + validation.
 
-Usage in template:
-    <div dj:component="users" dj:state="users=[], username='', email='', editing_id=null, error=''">
-        <form dj:submit="save_user">
-            <input dj:model="username" placeholder="Username">
-            <input dj:model="email" placeholder="Email">
-            <button type="submit">Save</button>
-        </form>
-
-        <tr dj:for="user in users">
-            <td>[[ user.username ]]</td>
-            <td>[[ user.email ]]</td>
-            <td><button dj:click="delete_user(user.id)">Delete</button></td>
-        </tr>
-
-        <p dj:empty="users">No users yet.</p>
-        <div dj:paginate="users"></div>
-    </div>
+Template: see example/templates/users.html
 """
 from django.contrib.auth.models import User
 from djact.pagination import paginate
+from djact.validation import validate
 
 
 class Component:
     def mount(self, request):
-        users = paginate(User.objects.all().order_by("-id"), request, 10)
         return {
-            "users": users,
+            "users": paginate(User.objects.all().order_by("-id"), request, 10),
             "username": "",
             "email": "",
             "editing_id": None,
-            "error": "",
+            "errors": {},
         }
 
     def save_user(self, request, data):
-        username = data.get("username", "").strip()
-        email = data.get("email", "").strip()
-        editing_id = data.get("editing_id")
+        # Auto-raises ValidationError → auto-returns errors to frontend
+        validate(data, {
+            "username": "required|string|min:3|max:150",
+            "email": "required|email|max:255",
+        })
 
-        if not username:
-            return {"error": "Username is required!"}
+        # Only runs if validation passes
+        username = data["username"].strip()
+        email = data["email"].strip()
+        editing_id = data.get("editing_id")
 
         if editing_id:
             user = User.objects.get(id=editing_id)
@@ -50,20 +38,14 @@ class Component:
         else:
             User.objects.create_user(username=username, email=email)
 
-        users = paginate(User.objects.all().order_by("-id"), request, 10)
         return {
-            "users": users,
+            "users": paginate(User.objects.all().order_by("-id"), request, 10),
             "username": "",
             "email": "",
             "editing_id": None,
-            "error": "",
+            "errors": {},
         }
 
     def delete_user(self, request, data, user_id):
         User.objects.filter(id=user_id).delete()
-        users = paginate(User.objects.all().order_by("-id"), request, 10)
-        return {"users": users}
-
-    def change_page(self, request, data):
-        users = paginate(User.objects.all().order_by("-id"), request, 10)
-        return {"users": users}
+        return {"users": paginate(User.objects.all().order_by("-id"), request, 10)}

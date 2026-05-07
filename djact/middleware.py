@@ -134,18 +134,18 @@ def _inject_auto_script(content: str) -> str:
 
 
 def _inject_anti_blink_css(content: str) -> str:
-    """Inject CSS that hides directive-controlled elements until JS processes them.
+    """Hide component content until JS fully renders it.
 
-    This prevents the "flash of unstyled content" where conditional elements
-    (dj:if, dj:empty, dj:for) and template expressions ([[ ... ]]) briefly
-    appear before JavaScript has a chance to evaluate and hide them.
+    Uses opacity:0 on the component root so layout is preserved but
+    no text (including raw [[ expressions ]]) flashes before JS runs.
     """
     if "djact-anti-blink" in content:
         return content
 
     style = (
         '<style id="djact-anti-blink">'
-        '[dj\\:if],[dj\\:empty],[dj\\:for]{display:none!important}'
+        '[dj\\:component]:not([data-dj-ready]){opacity:0!important}'
+        '[dj\\:if],[dj\\:empty],[dj\\:for],[dj\\:error]{display:none!important}'
         '</style>'
     )
     return _inject_into_head(content, style)

@@ -110,7 +110,8 @@ export function bindDirectives(root, componentName, getState, setState) {
       const isServerPagination = container.dataset.djPaginateIsServer === "true";
       
       if (isServerPagination) {
-        const method = container.dataset.djPaginateMethod || "paginate";
+        // Use custom method if specified, otherwise call mount()
+        const method = container.getAttribute("dj:paginate.method") || "mount";
         const payload = { ...getState(), __page: page, __paginate: key };
         callServer(componentName, method, payload).then((result) => {
           if (result) setState(result);

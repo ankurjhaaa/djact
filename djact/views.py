@@ -10,6 +10,9 @@ Expects JSON body:
 
 Dynamically loads the component via importlib, calls the method,
 and returns JSON.
+
+ValidationError from validate() is auto-caught and returned as
+{"errors": {...}} — the developer never needs to check manually.
 """
 import json
 import inspect
@@ -19,6 +22,7 @@ from django.http import JsonResponse, HttpResponseNotAllowed
 from django.views.decorators.csrf import csrf_protect
 
 from djact.loader import load_component, ComponentNotFoundError
+from djact.validation import ValidationError
 
 
 @csrf_protect
@@ -80,6 +84,10 @@ def djact_endpoint(request):
         else:
             # method(self, request)
             result = handler(request)
+
+    except ValidationError as exc:
+        # Auto-return validation errors — developer doesn't check manually
+        return JsonResponse({"errors": exc.errors}, status=200)
 
     except Exception as exc:
         debug = getattr(settings, "DEBUG", False)
