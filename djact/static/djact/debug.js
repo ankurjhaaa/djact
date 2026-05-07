@@ -45,7 +45,12 @@ export function isDebugEnabled() {
 
 // ── Global error capture ────────────────────────────────────────────────────
 
+let _errorsCaptured = false;
+
 function captureGlobalErrors() {
+  if (_errorsCaptured) return;
+  _errorsCaptured = true;
+
   window.addEventListener("error", (e) => {
     logError({
       type: "js",
@@ -314,8 +319,16 @@ function injectDebugStyles() {
 
 // ── FAB (Floating Action Button) ────────────────────────────────────────────
 
+let _dragBound = false;
+
 function createFab() {
-  if (_fabEl) return;
+  // Check if FAB already exists in DOM (could survive navigation)
+  const existing = document.getElementById("djact-debug-fab");
+  if (existing) {
+    _fabEl = existing;
+    return;
+  }
+  if (_fabEl && _fabEl.parentElement) return;
 
   const fab = document.createElement("div");
   fab.id = "djact-debug-fab";
@@ -330,38 +343,45 @@ function createFab() {
     togglePanel();
   });
 
-  // Drag
-  let isDragging = false, startX, startY, startLeft, startTop;
+  // Drag (bind document-level listeners only once)
+  if (!_dragBound) {
+    _dragBound = true;
+    let isDragging = false, startX, startY, startLeft, startTop, dragTarget;
 
-  fab.addEventListener("mousedown", (e) => {
-    isDragging = true;
-    fab._dragged = false;
-    startX = e.clientX;
-    startY = e.clientY;
-    const rect = fab.getBoundingClientRect();
-    startLeft = rect.left;
-    startTop = rect.top;
-    fab.style.transition = "none";
-    e.preventDefault();
-  });
+    document.addEventListener("mousedown", (e) => {
+      const el = e.target.closest("#djact-debug-fab");
+      if (!el) return;
+      isDragging = true;
+      dragTarget = el;
+      dragTarget._dragged = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = el.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+      el.style.transition = "none";
+      e.preventDefault();
+    });
 
-  document.addEventListener("mousemove", (e) => {
-    if (!isDragging) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) fab._dragged = true;
-    fab.style.left = (startLeft + dx) + "px";
-    fab.style.top = (startTop + dy) + "px";
-    fab.style.right = "auto";
-    fab.style.bottom = "auto";
-  });
+    document.addEventListener("mousemove", (e) => {
+      if (!isDragging || !dragTarget) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragTarget._dragged = true;
+      dragTarget.style.left = (startLeft + dx) + "px";
+      dragTarget.style.top = (startTop + dy) + "px";
+      dragTarget.style.right = "auto";
+      dragTarget.style.bottom = "auto";
+    });
 
-  document.addEventListener("mouseup", () => {
-    if (isDragging) {
+    document.addEventListener("mouseup", () => {
+      if (isDragging && dragTarget) {
+        dragTarget.style.transition = "";
+      }
       isDragging = false;
-      fab.style.transition = "";
-    }
-  });
+      dragTarget = null;
+    });
+  }
 }
 
 function updateBadge() {

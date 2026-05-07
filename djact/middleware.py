@@ -37,6 +37,7 @@ class DjactAutoLoadMiddleware:
         content = _ensure_endpoint_meta(content)
         content = _ensure_debug_meta(content)
         content = _ensure_navigate_meta(content)
+        content = _inject_anti_blink_css(content)
         content = _inject_auto_script(content)
 
         response.content = content.encode(charset)
@@ -132,6 +133,24 @@ def _inject_auto_script(content: str) -> str:
     return content + script
 
 
+def _inject_anti_blink_css(content: str) -> str:
+    """Inject CSS that hides directive-controlled elements until JS processes them.
+
+    This prevents the "flash of unstyled content" where conditional elements
+    (dj:if, dj:empty, dj:for) and template expressions ([[ ... ]]) briefly
+    appear before JavaScript has a chance to evaluate and hide them.
+    """
+    if "djact-anti-blink" in content:
+        return content
+
+    style = (
+        '<style id="djact-anti-blink">'
+        '[dj\\:if],[dj\\:empty],[dj\\:for]{display:none!important}'
+        '</style>'
+    )
+    return _inject_into_head(content, style)
+
+
 # ---------------------------------------------------------------------------
 # Head injector helper
 # ---------------------------------------------------------------------------
@@ -145,3 +164,4 @@ def _inject_into_head(content: str, tag: str) -> str:
         close = content.index(">", idx)
         return content[:close + 1] + "\n    " + tag + content[close + 1:]
     return tag + content
+
