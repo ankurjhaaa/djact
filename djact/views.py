@@ -3,20 +3,22 @@ djact.views — Single POST endpoint for all component method calls.
 
 Expects JSON body:
 {
-    "component": "todo",
-    "method": "add_task",
-    "data": { ... current state + form data ... }
+    "component": "home",
+    "method": "save",
+    "data": { ... current state ... }
 }
+
+Dynamically loads the component via importlib, calls the method,
+and returns JSON.
 """
 import json
 import inspect
-from typing import Callable
 
 from django.conf import settings
 from django.http import JsonResponse, HttpResponseNotAllowed
 from django.views.decorators.csrf import csrf_protect
 
-from djact.registry import get_registry
+from djact.loader import load_component, ComponentNotFoundError
 
 
 @csrf_protect
@@ -30,37 +32,55 @@ def djact_endpoint(request):
     except Exception:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
 
-    component = payload.get("component", "")
-    method = payload.get("method", "")
+    component_name = payload.get("component", "")
+    method_name = payload.get("method", "")
     data = payload.get("data", {})
 
-    if not component or not isinstance(component, str):
+    if not component_name or not isinstance(component_name, str):
         return JsonResponse({"error": "Missing component name"}, status=400)
 
-    if not method or not isinstance(method, str):
+    if not method_name or not isinstance(method_name, str):
         return JsonResponse({"error": "Missing method name"}, status=400)
 
-    # --- resolve handler --------------------------------------------------
-    registry = get_registry()
-    handler: Callable | None = registry.get_handler(component, method)
+    # --- load component ---------------------------------------------------
+    try:
+        component = load_component(component_name)
+    except ComponentNotFoundError as exc:
+        return JsonResponse({"error": str(exc)}, status=404)
 
-    if handler is None:
+    # --- resolve method ---------------------------------------------------
+    handler = getattr(component, method_name, None)
+    if handler is None or not callable(handler):
         return JsonResponse(
-            {"error": f"Unknown method '{method}' on component '{component}'"},
+            {"error": f"Method '{method_name}' not found on component '{component_name}'."},
             status=404,
+        )
+
+    # Prevent calling private/dunder methods
+    if method_name.startswith("_"):
+        return JsonResponse(
+            {"error": f"Cannot call private method '{method_name}'."},
+            status=403,
         )
 
     # --- execute ----------------------------------------------------------
     try:
-        passed_args = data.get("__args", [])
+        passed_args = data.pop("__args", []) if isinstance(data, dict) else []
         params = list(inspect.signature(handler).parameters.values())
-        
-        if len(params) > 1 and params[1].name == "data":
+
+        if method_name == "mount":
+            # mount(self, request) — no data
+            result = handler(request)
+        elif len(params) >= 2 and params[1].name == "data":
+            # method(self, request, data, *args)
             result = handler(request, data, *passed_args)
-        elif len(params) > 1:
+        elif len(params) >= 2:
+            # method(self, request, *args)
             result = handler(request, *passed_args)
         else:
+            # method(self, request)
             result = handler(request)
+
     except Exception as exc:
         debug = getattr(settings, "DEBUG", False)
         detail = str(exc) if debug else "Internal server error"

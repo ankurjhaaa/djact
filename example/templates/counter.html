@@ -1,0 +1,44 @@
+<!--
+  Example template for djact counter component.
+  
+  Usage:
+    1. Put counter.py in your_app/components/counter.py
+    2. Create a view that renders this template
+    3. Add djact to INSTALLED_APPS and middleware
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Djact Counter Example</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #f1f5f9; padding: 2rem; }
+        .card { max-width: 400px; margin: 0 auto; background: #fff; padding: 2rem; border-radius: 12px; border: 1px solid #e2e8f0; text-align: center; }
+        h1 { color: #1e293b; margin: 0 0 1rem; }
+        .count { font-size: 4rem; font-weight: 800; color: #3b82f6; margin: 1rem 0; }
+        .buttons { display: flex; gap: 0.5rem; justify-content: center; }
+        button { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; transition: all 0.15s; }
+        .btn-blue { background: #3b82f6; color: #fff; }
+        .btn-blue:hover { background: #2563eb; }
+        .btn-red { background: #ef4444; color: #fff; }
+        .btn-red:hover { background: #dc2626; }
+        .btn-gray { background: #e2e8f0; color: #475569; }
+        .btn-gray:hover { background: #cbd5e1; }
+    </style>
+</head>
+<body>
+
+<div dj:component="counter" dj:state="count=0">
+    <div class="card">
+        <h1>Djact Counter</h1>
+        <div class="count">[[ count ]]</div>
+        <div class="buttons">
+            <button dj:click="decrement" class="btn-red">- 1</button>
+            <button dj:click="reset" class="btn-gray">Reset</button>
+            <button dj:click="increment" class="btn-blue">+ 1</button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
