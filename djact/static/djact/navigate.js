@@ -7,26 +7,26 @@
  * Behavior:
  *   1. Intercepts click on dj:navigate links
  *   2. Fetches new page via fetch()
- *   3. Replaces main content (preserves debug FAB)
- *   4. Re-initializes djact components
+ *   3. Replaces main content
+ *   4. Re-initializes djact components + debug panel
  *   5. Updates browser URL via pushState
  */
 import { bootstrap } from "./core.js";
+import { initDebug } from "./debug.js";
 
 let _styleInjected = false;
 let _listenerBound = false;
-let _navigateColor = null;
 
-function injectNavigateStyles() {
+function injectStyles() {
   if (_styleInjected) return;
   _styleInjected = true;
 
   const meta = document.querySelector('meta[name="djact-navigate-color"]');
-  _navigateColor = meta ? meta.getAttribute("content") : "#3b82f6";
+  const color = meta ? meta.getAttribute("content") : "#3b82f6";
 
   const css = `
     [dj\\:navigate] {
-      color: ${_navigateColor};
+      color: ${color};
       cursor: pointer;
       text-decoration: none;
       transition: opacity 0.15s ease;
@@ -42,7 +42,7 @@ function injectNavigateStyles() {
       width: 100%;
       height: 3px;
       z-index: 999999;
-      background: linear-gradient(90deg, ${_navigateColor}, ${_navigateColor}88);
+      background: linear-gradient(90deg, ${color}, ${color}88);
       animation: djact-nav-bar 0.8s ease-in-out infinite;
       transform-origin: left;
     }
@@ -89,7 +89,6 @@ async function navigateTo(url) {
     });
 
     if (!response.ok) {
-      console.error(`[djact] Navigation failed: ${response.status}`);
       window.location.href = url;
       return;
     }
@@ -98,13 +97,12 @@ async function navigateTo(url) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
-    // Update <title>
+    // Update title
     const newTitle = doc.querySelector("title");
     if (newTitle) document.title = newTitle.textContent;
 
-    // Update meta tags from new page
-    const newMetas = doc.querySelectorAll('head meta[name^="djact"]');
-    newMetas.forEach(meta => {
+    // Update meta tags
+    doc.querySelectorAll('head meta[name^="djact"]').forEach(meta => {
       const name = meta.getAttribute("name");
       const existing = document.querySelector(`head meta[name="${name}"]`);
       if (existing) {
@@ -114,27 +112,20 @@ async function navigateTo(url) {
       }
     });
 
-    // Save persistent elements (debug FAB & panel)
-    const fab = document.getElementById("djact-debug-fab");
-    const panel = document.getElementById("djact-debug-panel");
-    const savedFab = fab ? fab.cloneNode(true) : null;
-    const savedPanel = panel ? panel.cloneNode(true) : null;
-
-    // Replace body content
+    // Replace body
     const newBody = doc.querySelector("body");
     if (newBody) {
       document.body.innerHTML = newBody.innerHTML;
     }
 
-    // Restore persistent elements
-    if (savedFab) document.body.appendChild(savedFab);
-    if (savedPanel) document.body.appendChild(savedPanel);
-
     // Update URL
     window.history.pushState({ djact: true, url }, document.title, url);
 
-    // Re-initialize djact components (marks unbound ones)
+    // Re-initialize djact components
     bootstrap();
+
+    // Re-create debug FAB (delegated events already on document, just needs the DOM element)
+    initDebug();
 
     window.scrollTo(0, 0);
 
@@ -146,7 +137,7 @@ async function navigateTo(url) {
   }
 }
 
-// ── Event binding (ONLY ONCE) ───────────────────────────────────────────────
+// ── Event binding (ONLY ONCE via flag) ──────────────────────────────────────
 
 function bindNavigation() {
   if (_listenerBound) return;
@@ -155,12 +146,9 @@ function bindNavigation() {
   document.addEventListener("click", (e) => {
     const link = e.target.closest("[dj\\:navigate]");
     if (!link) return;
-
     e.preventDefault();
     const url = link.getAttribute("dj:navigate") || link.getAttribute("href");
-    if (!url) return;
-
-    navigateTo(url);
+    if (url) navigateTo(url);
   });
 
   window.addEventListener("popstate", (e) => {
@@ -173,6 +161,6 @@ function bindNavigation() {
 // ── Initialize ──────────────────────────────────────────────────────────────
 
 export function initNavigate() {
-  injectNavigateStyles();
+  injectStyles();
   bindNavigation();
 }

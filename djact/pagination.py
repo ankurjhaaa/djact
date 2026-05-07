@@ -7,34 +7,43 @@ Usage in component:
 
     class Component:
         def mount(self, request):
-            return paginate(User.objects.all(), page=1, per_page=10, key="users")
+            users = paginate(User.objects.all(), request, 10)
+            return {"users": users}
 
         def change_page(self, request, data):
-            return paginate(User.objects.all(), page=data.get("__page", 1), per_page=10, key="users")
+            users = paginate(User.objects.all(), request, 10)
+            return {"users": users}
 
 Template:
     <div dj:for="user in users">[[ user.name ]]</div>
     <div dj:paginate="users"></div>
+
+The function auto-detects the page number from the request body (__page).
 """
 from __future__ import annotations
 
+import json
 import math
 from typing import Any
 
 
-def paginate(queryset, page: int = 1, per_page: int = 10, key: str = "items") -> dict[str, Any]:
-    """Paginate a Django QuerySet and return state-ready dict.
+def paginate(queryset, page=1, per_page: int = 10) -> dict[str, Any]:
+    """Paginate a Django QuerySet and return a pagination-ready dict.
 
     Args:
         queryset: Django QuerySet or list to paginate.
-        page: Current page number (1-indexed).
+        page: Page number (int) OR a Django HttpRequest object.
+              If a request object, __page is auto-extracted from POST body.
         per_page: Number of items per page.
-        key: State key name for the data list.
 
     Returns:
-        Dict with paginated data and pagination metadata, ready to
-        return from a Component method.
+        Dict with { data, current_page, last_page, per_page, total }
+        ready to be used as a state value with dj:for and dj:paginate.
     """
+    # If page is a request object, extract __page from JSON body
+    if hasattr(page, "body"):
+        page = _extract_page(page)
+
     page = max(1, int(page))
     per_page = max(1, int(per_page))
 
@@ -52,9 +61,8 @@ def paginate(queryset, page: int = 1, per_page: int = 10, key: str = "items") ->
 
     offset = (page - 1) * per_page
 
-    # Slice data
+    # Slice data — auto-serialize QuerySet to list of dicts
     if hasattr(queryset, "values"):
-        # Django QuerySet — auto-serialize to list of dicts
         items = list(queryset[offset:offset + per_page].values())
     elif hasattr(queryset, "__getitem__"):
         items = list(queryset[offset:offset + per_page])
@@ -62,13 +70,28 @@ def paginate(queryset, page: int = 1, per_page: int = 10, key: str = "items") ->
         items = list(queryset)
 
     return {
-        key: items,
-        "pagination": {
-            "current_page": page,
-            "total_pages": total_pages,
-            "per_page": per_page,
-            "total": total,
-            "has_next": page < total_pages,
-            "has_prev": page > 1,
-        },
+        "data": items,
+        "current_page": page,
+        "last_page": total_pages,
+        "per_page": per_page,
+        "total": total,
     }
+
+
+def _extract_page(request) -> int:
+    """Extract page number from Django request's JSON body."""
+    try:
+        body = json.loads(request.body.decode("utf-8"))
+        data = body.get("data", {})
+        if isinstance(data, dict):
+            return int(data.get("__page", 1))
+    except Exception:
+        pass
+
+    # Fallback: try GET parameter
+    try:
+        return int(request.GET.get("page", 1))
+    except (ValueError, AttributeError):
+        pass
+
+    return 1
