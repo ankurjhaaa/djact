@@ -9,6 +9,7 @@
  * - dj:paginate rendering.
  */
 import { evaluateExpression } from "./renderer_expr.js";
+import { renderPagination } from "./paginate.js";
 
 const _templateCache = new WeakMap();
 const _attrCache = new WeakMap();
@@ -224,58 +225,3 @@ function resolveList(state, listName, container = null) {
   return [];
 }
 
-function renderPagination(container, state) {
-  const key = container.getAttribute("dj:paginate") || "";
-  const value = state[key];
-  if (!value) {
-    container.innerHTML = "";
-    return;
-  }
-
-  const isServerPagination = value.data && typeof value.current_page === "number";
-  
-  let current, last, method;
-  if (isServerPagination) {
-    current = value.current_page;
-    last = value.last_page || 1;
-    method = value.method || "paginate";
-  } else if (Array.isArray(value)) {
-    const perPage = resolvePerPage(container, state, key);
-    const pages = state.__djact_page || {};
-    current = (typeof pages[key] === "number") ? pages[key] : 1;
-    last = Math.ceil(value.length / perPage);
-    method = null;
-  } else {
-    container.innerHTML = "";
-    return;
-  }
-
-  container.dataset.djPaginateMethod = method || "paginate";
-  container.dataset.djPaginateKey = key;
-  container.dataset.djPaginateIsServer = String(isServerPagination);
-
-  const buttons = [];
-  const prevDisabled = current <= 1;
-  const nextDisabled = current >= last;
-
-  buttons.push(renderPageButton("Prev", current - 1, prevDisabled));
-  for (let i = 1; i <= last; i++) {
-    buttons.push(renderPageButton(String(i), i, i === current));
-  }
-  buttons.push(renderPageButton("Next", current + 1, nextDisabled));
-
-  // Quick diff to avoid losing focus if not necessary, but for pagination innerHTML is fine
-  container.innerHTML = "";
-  buttons.forEach((btn) => container.appendChild(btn));
-}
-
-function renderPageButton(label, page, disabled) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = label;
-  button.dataset.djPage = String(page);
-  if (disabled) {
-    button.disabled = true;
-  }
-  return button;
-}

@@ -4,7 +4,9 @@ djact.middleware — Auto-inject Djact assets into HTML responses.
 Injects (only when dj:component is detected in the HTML):
 1. CSRF <meta> tag (for secure AJAX)
 2. Djact endpoint URL <meta> tag (so JS doesn't hardcode the URL)
-3. auto.js <script> tag (client runtime)
+3. Debug mode <meta> tag (when Django DEBUG=True)
+4. Navigate color <meta> tag (from NAVIGATE_COLOR setting)
+5. auto.js <script> tag (client runtime)
 """
 from __future__ import annotations
 
@@ -27,12 +29,14 @@ class DjactAutoLoadMiddleware:
         charset = getattr(response, "charset", "utf-8")
         content = response.content.decode(charset)
 
-        # Only inject assets if this page uses djact components
-        if "dj:component" not in content:
+        # Only inject assets if this page uses djact components or navigate links
+        if "dj:component" not in content and "dj:navigate" not in content:
             return response
 
         content = _ensure_csrf_meta(content, request)
         content = _ensure_endpoint_meta(content)
+        content = _ensure_debug_meta(content)
+        content = _ensure_navigate_meta(content)
         content = _inject_auto_script(content)
 
         response.content = content.encode(charset)
@@ -59,15 +63,7 @@ def _ensure_csrf_meta(content: str, request) -> str:
 
     token = get_token(request)
     meta = f'<meta name="csrf-token" content="{token}">'
-
-    if "<head>" in content:
-        return content.replace("<head>", "<head>\n    " + meta, 1)
-    if "<head " in content:
-        idx = content.index("<head ")
-        close = content.index(">", idx)
-        return content[:close + 1] + "\n    " + meta + content[close + 1:]
-
-    return meta + content
+    return _inject_into_head(content, meta)
 
 
 def _ensure_endpoint_meta(content: str) -> str:
@@ -76,15 +72,31 @@ def _ensure_endpoint_meta(content: str) -> str:
 
     endpoint_url = _resolve_endpoint_url()
     meta = f'<meta name="djact-url" content="{endpoint_url}">'
+    return _inject_into_head(content, meta)
 
-    if "<head>" in content:
-        return content.replace("<head>", "<head>\n    " + meta, 1)
-    if "<head " in content:
-        idx = content.index("<head ")
-        close = content.index(">", idx)
-        return content[:close + 1] + "\n    " + meta + content[close + 1:]
 
-    return meta + content
+def _ensure_debug_meta(content: str) -> str:
+    if 'name="djact-debug"' in content:
+        return content
+
+    debug = getattr(settings, "DEBUG", False)
+    if not debug:
+        return content
+
+    meta = '<meta name="djact-debug" content="true">'
+    return _inject_into_head(content, meta)
+
+
+def _ensure_navigate_meta(content: str) -> str:
+    if 'name="djact-navigate-color"' in content:
+        return content
+
+    color = getattr(settings, "NAVIGATE_COLOR", None)
+    if not color:
+        return content
+
+    meta = f'<meta name="djact-navigate-color" content="{color}">'
+    return _inject_into_head(content, meta)
 
 
 def _resolve_endpoint_url() -> str:
@@ -118,3 +130,18 @@ def _inject_auto_script(content: str) -> str:
         return content.replace("</body>", f"\n    {script}\n</body>", 1)
 
     return content + script
+
+
+# ---------------------------------------------------------------------------
+# Head injector helper
+# ---------------------------------------------------------------------------
+
+def _inject_into_head(content: str, tag: str) -> str:
+    """Inject a tag into <head>. Works with <head> or <head ...>."""
+    if "<head>" in content:
+        return content.replace("<head>", "<head>\n    " + tag, 1)
+    if "<head " in content:
+        idx = content.index("<head ")
+        close = content.index(">", idx)
+        return content[:close + 1] + "\n    " + tag + content[close + 1:]
+    return tag + content

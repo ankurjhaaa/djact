@@ -3,7 +3,9 @@
  *
  * Reads the endpoint URL from <meta name="djact-url"> so it's
  * never hardcoded.  Every call includes the component name.
+ * Hooks into debug panel for request tracking.
  */
+import { logRequest, logError, isDebugEnabled } from "./debug.js";
 
 let _endpointUrl = null;
 
@@ -31,22 +33,70 @@ function getCsrfToken() {
  */
 export async function callServer(component, method, data) {
   const url = getEndpointUrl();
+  const requestBody = { component, method, data };
+  const startTime = performance.now();
+  const debug = isDebugEnabled();
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-CSRFToken": getCsrfToken(),
-    },
-    credentials: "same-origin",
-    body: JSON.stringify({ component, method, data }),
-  });
+  let status = 0;
+  let responseData = null;
 
-  if (!response.ok) {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCsrfToken(),
+      },
+      credentials: "same-origin",
+      body: JSON.stringify(requestBody),
+    });
+
+    status = response.status;
     const body = await response.json().catch(() => ({}));
-    const msg = body.error || `Server error ${response.status}`;
-    throw new Error(msg);
-  }
+    responseData = body;
 
-  return response.json();
+    if (!response.ok) {
+      const msg = body.error || `Server error ${response.status}`;
+      const err = new Error(msg);
+
+      if (debug) {
+        logError({
+          type: "server",
+          message: `${component}.${method}() → ${status}: ${msg}`,
+          source: url,
+          time: new Date().toLocaleTimeString(),
+        });
+      }
+
+      throw err;
+    }
+
+    return body;
+
+  } catch (err) {
+    if (debug && status === 0) {
+      logError({
+        type: "network",
+        message: err.message,
+        source: url,
+        time: new Date().toLocaleTimeString(),
+      });
+    }
+    throw err;
+
+  } finally {
+    if (debug) {
+      const latency = Math.round(performance.now() - startTime);
+      logRequest({
+        component,
+        method,
+        url,
+        status,
+        latency,
+        request: requestBody,
+        response: responseData,
+        time: new Date().toLocaleTimeString(),
+      });
+    }
+  }
 }

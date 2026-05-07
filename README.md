@@ -1,4 +1,4 @@
-# Djact v4.0
+# Djact v4.1
 
 **File-based reactive components for Django.** No React, no Inertia — just Python classes and HTML directives.
 
@@ -14,6 +14,9 @@ Django renders the page normally. After that, all interactions happen via AJAX. 
 - **Reactive directives** — `dj:click`, `dj:submit`, `dj:model`, `dj:function`, `dj:state`
 - **Template expressions** — `[[ count ]]`, `[[ user.name ]]` (no Django `{{ }}` conflict)
 - **Auto-discovery** — Components found automatically from installed apps
+- **Auto Pagination UI** — Laravel-style pagination with dark/light theme
+- **SPA Navigation** — `dj:navigate` for page transitions without reload
+- **Debug Panel** — Next.js-style floating devtools (only in DEBUG mode)
 - **Zero JS to write** — Everything is declarative
 
 ---
@@ -222,6 +225,80 @@ class Component:
 |---------|---------|-------------|
 | `DJACT_ENDPOINT_URL` | Auto-resolved | Override the AJAX endpoint URL |
 | `DJACT_COMPONENTS_MODULE` | None | Explicit module path (e.g. `"myapp.components"`) |
+| `NAVIGATE_COLOR` | `#3b82f6` | Link color for `dj:navigate` links |
+| `DEBUG` | `False` | Enables the debug panel when `True` |
+
+---
+
+## Auto Pagination
+
+Add `dj:paginate` to any container. It auto-generates a Laravel-style pagination UI.
+
+```python
+# myapp/components/users.py
+class Component:
+    def mount(self, request):
+        return {
+            "users": User.objects.values("id", "name")[:10],
+            "pagination": {
+                "current_page": 1,
+                "total_pages": 5,
+                "has_next": True,
+                "has_prev": False
+            }
+        }
+
+    def change_page(self, request, data):
+        page = data.get("__page", 1)
+        per_page = 10
+        offset = (page - 1) * per_page
+        return {
+            "users": User.objects.values("id", "name")[offset:offset+per_page],
+            "pagination": {
+                "current_page": page,
+                "total_pages": 5,
+                "has_next": page < 5,
+                "has_prev": page > 1
+            }
+        }
+```
+
+```html
+<div dj:component="users">
+    <div dj:for="user in users">[[ user.name ]]</div>
+    <div dj:paginate="users"></div>
+</div>
+```
+
+Theme override:
+```html
+<div dj:paginate="users" dj:paginate.mode="dark"></div>
+<div dj:paginate="users" dj:paginate.mode="light"></div>
+```
+
+---
+
+## SPA Navigation
+
+Navigate between pages without full reload:
+
+```html
+<a dj:navigate="/dashboard">Dashboard</a>
+<a dj:navigate="/settings">Settings</a>
+```
+
+Shows a progress bar during navigation. Automatically re-initializes djact on the new page.
+
+---
+
+## Debug Panel
+
+Automatically appears when Django `DEBUG = True`. Floating button in bottom-right corner.
+
+Shows:
+- **Requests** — Component name, method, latency, status, full JSON payload/response
+- **Errors** — Django server errors, JS errors, network failures
+- **Logs** — Timeline of all actions
 
 ---
 
