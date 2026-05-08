@@ -4,9 +4,6 @@
  * Scans for [dj:component="name"], reads initial state from [dj:state],
  * calls mount() on the server, and manages the render cycle for each
  * component independently.
- *
- * Anti-blink: component is invisible (opacity:0) until mount() returns
- * and first render completes. Then data-dj-ready is set to make it visible.
  */
 import { render } from "./renderer.js";
 import { bindDirectives } from "./directives.js";
@@ -14,8 +11,10 @@ import { callServer } from "./api.js";
 import { parseStateString } from "./state.js";
 
 const _components = new Map();
+let _mountPromises = [];
 
 export function bootstrap() {
+  _mountPromises = [];
   const roots = document.querySelectorAll("[dj\\:component]");
   
   roots.forEach(root => {
@@ -54,17 +53,21 @@ export function bootstrap() {
     bindDirectives(root, componentName, getState, setState);
 
     // Call mount() on server to get full initial state
-    callServer(componentName, "mount", state)
+    const mountPromise = callServer(componentName, "mount", state)
       .then((data) => {
         if (data) setState(data);
       })
       .catch((err) => {
         console.error(`[djact] Failed to mount component '${componentName}':`, err);
-      })
-      .finally(() => {
-        // Make component visible — anti-blink protection complete
-        root.dataset.djReady = "1";
       });
+      
+    _mountPromises.push(mountPromise);
+  });
+
+  // Remove anti-blink CSS after ALL components have mounted
+  Promise.allSettled(_mountPromises).then(() => {
+    const antiBlink = document.getElementById("djact-anti-blink");
+    if (antiBlink) antiBlink.remove();
   });
 }
 

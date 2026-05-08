@@ -205,12 +205,37 @@ class Component:
 
 ### Method Signatures
 
-| Method | Signature | When Called |
-|--------|-----------|------------|
 | `mount` | `mount(self, request)` | First page load + pagination |
+| `mount` (with data) | `mount(self, request, data)` | Receives initial `dj:state` |
 | Action | `method(self, request, data)` | `dj:click`, `dj:submit` |
 | With args | `method(self, request, data, arg1, arg2)` | `dj:click="method(val1, val2)"` |
 | No data | `method(self, request)` | When no state needed |
+
+### Dynamic URL Parameters (Django Routes)
+
+To pass a URL parameter (e.g. `<int:user_id>`) from a Django view into a component, render it into `dj:state`. Then update your `mount` signature to accept `data`.
+
+**1. Django View**
+```python
+def user_profile(request, user_id):
+    return render(request, "profile.html", {"user_id": user_id})
+```
+
+**2. Template**
+```html
+<div dj:component="profile" dj:state="user_id={{ user_id }}">
+```
+
+**3. Component (`mount` with `data`)**
+```python
+class Component:
+    def mount(self, request, data):
+        # data contains the parsed dj:state
+        user_id = data.get("user_id")
+        user = User.objects.get(id=user_id)
+        return {"user": user.name}
+```
+This approach works perfectly with `dj:navigate` as well!
 
 ### Explicit Component Module
 

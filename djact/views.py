@@ -73,8 +73,10 @@ def djact_endpoint(request):
         params = list(inspect.signature(handler).parameters.values())
 
         if method_name == "mount":
-            # mount(self, request) — no data
-            result = handler(request)
+            if len(params) >= 2 and params[1].name == "data":
+                result = handler(request, data)
+            else:
+                result = handler(request)
         elif len(params) >= 2 and params[1].name == "data":
             # method(self, request, data, *args)
             result = handler(request, data, *passed_args)
