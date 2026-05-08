@@ -19,6 +19,19 @@ let _forId = 0;
 
 export function render(root, state) {
   applyLoops(root, state);
+
+  // Pre-pass: Inject dj:error messages into scope so text nodes can access `message`
+  root.querySelectorAll("[dj\\:error]").forEach((el) => {
+    const fieldName = el.getAttribute("dj:error") || "";
+    const errors = state.errors || {};
+    const errorMsg = errors[fieldName];
+    if (errorMsg) {
+      const scope = { ...resolveScope(el, state), message: errorMsg };
+      _scopeCache.set(el, scope);
+    } else {
+      _scopeCache.delete(el);
+    }
+  });
   
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
   const nodes = [];

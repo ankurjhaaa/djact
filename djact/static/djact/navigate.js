@@ -112,6 +112,14 @@ async function navigateTo(url) {
       }
     });
 
+    // Re-inject anti-blink style to prevent FOUC on new page
+    if (!document.getElementById("djact-anti-blink")) {
+      const antiBlink = document.createElement("style");
+      antiBlink.id = "djact-anti-blink";
+      antiBlink.textContent = '[dj\\:if],[dj\\:empty],[dj\\:for],[dj\\:error]{display:none!important}';
+      document.head.appendChild(antiBlink);
+    }
+
     // Replace body
     const newBody = doc.querySelector("body");
     if (newBody) {

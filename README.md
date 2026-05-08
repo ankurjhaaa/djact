@@ -213,29 +213,76 @@ class Component:
 
 ### Dynamic URL Parameters (Django Routes)
 
-To pass a URL parameter (e.g. `<int:user_id>`) from a Django view into a component, render it into `dj:state`. Then update your `mount` signature to accept `data`.
+To pass dynamic data from a Django URL route (like `<int:id>` or `<str:slug>`) into a component, you simply pass it to the template and render it into `dj:state`. Then your `mount` function can catch it using `data`.
 
-**1. Django View**
+#### Example 1: Passing a Single ID (User Profile)
+
+**1. Django View (`views.py`)**
 ```python
 def user_profile(request, user_id):
+    # Pass URL param to the template context
     return render(request, "profile.html", {"user_id": user_id})
 ```
 
-**2. Template**
+**2. Template (`profile.html`)**
 ```html
+<!-- Inject the Django variable into dj:state -->
 <div dj:component="profile" dj:state="user_id={{ user_id }}">
+    <h1>[[ username ]]</h1>
+</div>
 ```
 
-**3. Component (`mount` with `data`)**
+**3. Component (`components/profile.py`)**
 ```python
 class Component:
     def mount(self, request, data):
-        # data contains the parsed dj:state
-        user_id = data.get("user_id")
+        # 'data' automatically receives the parsed dj:state
+        user_id = data.get("user_id") 
         user = User.objects.get(id=user_id)
-        return {"user": user.name}
+        
+        return {"username": user.username}
 ```
-This approach works perfectly with `dj:navigate` as well!
+
+#### Example 2: Passing Multiple Parameters (Strings & IDs)
+
+You can pass as many variables as you want, including strings. Just make sure to wrap strings in quotes (`'{{ string_var }}'`) inside the `dj:state` string.
+
+**1. Django View (`views.py`)**
+```python
+def product_list(request, category, status_id):
+    return render(request, "products.html", {
+        "category": category,   # e.g., "electronics"
+        "status_id": status_id  # e.g., 2
+    })
+```
+
+**2. Template (`products.html`)**
+```html
+<!-- Strings need quotes, integers do not -->
+<div dj:component="products" dj:state="category='{{ category }}', status_id={{ status_id }}">
+    <h2>Category: [[ category ]]</h2>
+    <div dj:for="item in items">...</div>
+</div>
+```
+
+**3. Component (`components/products.py`)**
+```python
+class Component:
+    def mount(self, request, data):
+        # Read both parameters passed from the URL
+        category = data.get("category")
+        status_id = data.get("status_id")
+        
+        # Filter database based on URL parameters
+        items = Product.objects.filter(category=category, status=status_id)
+        
+        return {
+            "category": category,
+            "items": [i.to_dict() for i in items]
+        }
+```
+
+This approach is highly scalable and works perfectly with `dj:navigate` for seamless SPA transitions!
 
 ### Explicit Component Module
 
