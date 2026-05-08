@@ -295,6 +295,61 @@ DJACT_COMPONENTS_MODULE = "myapp.components"
 
 ---
 
+## Sub-Components & Reusability
+
+If you want to reuse UI elements (like a `productcard.html`) or pass data to child components similar to Livewire or React, Djact leverages **Django's native template engine** to keep things incredibly simple.
+
+There are two ways to do this:
+
+### 1. UI-Only Component (Dumb Component)
+If the sub-component is just for layout (HTML) and uses the parent's state, use Django's `{% include %}` inside a `dj:for` loop.
+
+**`productcard.html` (The Sub-Component)**
+```html
+<div class="border p-4">
+    <!-- Uses 'product' variable from the parent's dj:for loop -->
+    <h3>[[ product.name ]]</h3>
+    <p>₹ [[ product.price ]]</p>
+    
+    <!-- Calls a method on the parent component -->
+    <button dj:click="delete_product(product.id)">Delete</button>
+</div>
+```
+
+**Main Template:**
+```html
+<div dj:component="products">
+    <div dj:for="product in products">
+        {% include "productcard.html" %}
+    </div>
+</div>
+```
+
+### 2. Independent Smart Component
+If the sub-component needs its own independent state and its own Python file (e.g., each product card manages its own "Add to Cart" logic and loading states), you use a Django `{% for %}` loop to create multiple independent Djact components.
+
+**`productcard.html` (Independent Djact Component)**
+```html
+<!-- Define it as a standalone dj:component -->
+<div dj:component="product_card" dj:state="product_id={{ product_id }}">
+    <h3>[[ name ]]</h3>
+    <button dj:click="add_to_cart" dj:if="!in_cart">Add to Cart</button>
+    <span dj:if="in_cart">Added!</span>
+</div>
+```
+
+**Main Template:**
+```html
+<!-- Use Django's loop to generate multiple independent components -->
+<div class="grid">
+    {% for product in all_products %}
+        {% include "productcard.html" with product_id=product.id %}
+    {% endfor %}
+</div>
+```
+
+---
+
 ## Directives Reference
 
 ### Setup Directives
